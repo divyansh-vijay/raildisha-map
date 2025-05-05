@@ -1,0 +1,452 @@
+[
+  {
+    "id": "49c2d401-bd1f-4aee-b152-923aaffec914",
+    "name": "Product 102",
+    "description": "A description for product 750.",
+    "price": 160.44,
+    "stock": 1,
+    "imageUrl": "https://example.com/images/product_754.jpg",
+    "categoryId": "d569faf3-1a1c-4ddc-840c-64af0fd5840a"
+  },
+  {
+    "id": "34285d14-4e4f-477f-b2f6-c0d0646caf95",
+    "name": "Product 490",
+    "description": "A description for product 588.",
+    "price": 399.84,
+    "stock": 50,
+    "imageUrl": "https://example.com/images/product_113.jpg",
+    "categoryId": "aa6fdd12-f4a6-4761-afab-e0d62c26e8fa"
+  },
+  {
+    "id": "3fb6467f-1253-4380-b3a1-ddbbb2d7ba91",
+    "name": "Product 901",
+    "description": "A description for product 897.",
+    "price": 406.3,
+    "stock": 177,
+    "imageUrl": "https://example.com/images/product_60.jpg",
+    "categoryId": "5fc9167a-87cf-4279-9a82-d346d4c76651"
+  },
+  {
+    "id": "6ad03114-9edb-4e57-b132-a7380c9de563",
+    "name": "Product 358",
+    "description": "A description for product 159.",
+    "price": 339.62,
+    "stock": 113,
+    "imageUrl": "https://example.com/images/product_368.jpg",
+    "categoryId": "dfca4dc0-db73-49db-932a-8a3444766314"
+  },
+  {
+    "id": "ac644afd-4cc6-4cf2-aa87-a8dada7d5fbf",
+    "name": "Product 337",
+    "description": "A description for product 829.",
+    "price": 476.43,
+    "stock": 170,
+    "imageUrl": "https://example.com/images/product_520.jpg",
+    "categoryId": "71955c4b-6f51-4745-924e-1a1bb2db351b"
+  },
+  {
+    "id": "8c591162-b3f3-4343-b5b2-a7f8b0b2b1d2",
+    "name": "Product 11",
+    "description": "A description for product 321.",
+    "price": 291.04,
+    "stock": 136,
+    "imageUrl": "https://example.com/images/product_189.jpg",
+    "categoryId": "d49e2055-504d-4bd1-9cc6-b4b48141e3b2"
+  },
+  {
+    "id": "8a9cad2b-194b-4956-960f-629d6fe96c3a",
+    "name": "Product 747",
+    "description": "A description for product 267.",
+    "price": 23.1,
+    "stock": 23,
+    "imageUrl": "https://example.com/images/product_234.jpg",
+    "categoryId": "040b6e49-dab8-479e-9052-15b83c5e16a0"
+  },
+  {
+    "id": "71c7e7b3-6dba-4d67-9200-875ac7e88ea0",
+    "name": "Product 31",
+    "description": "A description for product 472.",
+    "price": 473.26,
+    "stock": 136,
+    "imageUrl": "https://example.com/images/product_850.jpg",
+    "categoryId": "a2bd8b7c-a9a6-487a-bf51-4bda399fb05a"
+  },
+  {
+    "id": "58556669-8d8b-46b5-9138-220cab83e17e",
+    "name": "Product 836",
+    "description": "A description for product 67.",
+    "price": 211.52,
+    "stock": 121,
+    "imageUrl": "https://example.com/images/product_252.jpg",
+    "categoryId": "0bc97f5a-64e7-4518-94f6-02b04dddfb72"
+  },
+  {
+    "id": "b289ada6-f5a9-4b13-a453-85728ea34fc4",
+    "name": "Product 369",
+    "description": "A description for product 433.",
+    "price": 432.47,
+    "stock": 25,
+    "imageUrl": "https://example.com/images/product_704.jpg",
+    "categoryId": "b132cda8-383c-422f-bd0f-9dc68db8c421"
+  },
+  {
+    "id": "2e2506de-e97f-4cf6-979e-3fd97b94c368",
+    "name": "Product 143",
+    "description": "A description for product 384.",
+    "price": 253.0,
+    "stock": 62,
+    "imageUrl": "https://example.com/images/product_845.jpg",
+    "categoryId": "f03c5c59-6ace-4189-a75d-79b938850a42"
+  },
+  {
+    "id": "c621b638-c83c-4dc2-b0ad-ea55d71dcf12",
+    "name": "Product 700",
+    "description": "A description for product 442.",
+    "price": 6.43,
+    "stock": 68,
+    "imageUrl": "https://example.com/images/product_471.jpg",
+    "categoryId": "6112d68c-c5d2-4aeb-b1f0-ee152276e96e"
+  },
+  {
+    "id": "e5712a23-4701-4673-aeb9-899ccced5621",
+    "name": "Product 22",
+    "description": "A description for product 663.",
+    "price": 127.85,
+    "stock": 120,
+    "imageUrl": "https://example.com/images/product_238.jpg",
+    "categoryId": "e59df055-b403-4d5b-837f-51cce2c8f7aa"
+  },
+  {
+    "id": "27b7bb00-9501-4c81-8e29-8d0fd5074ffb",
+    "name": "Product 733",
+    "description": "A description for product 202.",
+    "price": 27.47,
+    "stock": 12,
+    "imageUrl": "https://example.com/images/product_873.jpg",
+    "categoryId": "776bbe8a-0b81-451c-b908-954e94e979d8"
+  },
+  {
+    "id": "4e235caa-1c5a-4cdf-88a6-774935393ab1",
+    "name": "Product 233",
+    "description": "A description for product 754.",
+    "price": 71.52,
+    "stock": 166,
+    "imageUrl": "https://example.com/images/product_304.jpg",
+    "categoryId": "1eb6076e-230d-48ef-912d-e1c49303a5bb"
+  },
+  {
+    "id": "1d2a7903-eb6b-487f-bde5-52e857258ae3",
+    "name": "Product 28",
+    "description": "A description for product 352.",
+    "price": 255.73,
+    "stock": 197,
+    "imageUrl": "https://example.com/images/product_793.jpg",
+    "categoryId": "1e377d46-7a6e-42a7-92e9-ba95ca358dd9"
+  },
+  {
+    "id": "4eace295-b90f-4210-b375-99ff1d8c9123",
+    "name": "Product 796",
+    "description": "A description for product 275.",
+    "price": 342.76,
+    "stock": 68,
+    "imageUrl": "https://example.com/images/product_648.jpg",
+    "categoryId": "3103c4cc-db53-4b1e-80ef-f34eafd0abbd"
+  },
+  {
+    "id": "e76f1b4f-d5dd-4365-9650-7f289a0a7d08",
+    "name": "Product 919",
+    "description": "A description for product 206.",
+    "price": 279.46,
+    "stock": 194,
+    "imageUrl": "https://example.com/images/product_733.jpg",
+    "categoryId": "0901ce5b-36b0-48b1-a2aa-46c672af51b1"
+  },
+  {
+    "id": "5e90958f-726d-4915-bfac-8fc316fe6425",
+    "name": "Product 786",
+    "description": "A description for product 151.",
+    "price": 60.29,
+    "stock": 84,
+    "imageUrl": "https://example.com/images/product_717.jpg",
+    "categoryId": "d56111c4-7b30-400f-98e0-d9f5c88e9ed4"
+  },
+  {
+    "id": "7304337b-3b8e-4642-b085-52615d49d286",
+    "name": "Product 807",
+    "description": "A description for product 815.",
+    "price": 341.66,
+    "stock": 42,
+    "imageUrl": "https://example.com/images/product_319.jpg",
+    "categoryId": "9472900b-d5ea-4293-b407-348b365f7e45"
+  },
+  {
+    "id": "06e9ddf4-6884-44a2-8fc2-f6c7e39c53e2",
+    "name": "Product 745",
+    "description": "A description for product 718.",
+    "price": 104.86,
+    "stock": 170,
+    "imageUrl": "https://example.com/images/product_846.jpg",
+    "categoryId": "5b14259e-1dc0-45de-a8ba-11517996e4fb"
+  },
+  {
+    "id": "dfe3bf15-fd1f-4fdc-b348-6381f0f7a07e",
+    "name": "Product 732",
+    "description": "A description for product 846.",
+    "price": 184.39,
+    "stock": 57,
+    "imageUrl": "https://example.com/images/product_138.jpg",
+    "categoryId": "18a1d7f5-4e24-455d-be69-6eaae6b8611f"
+  },
+  {
+    "id": "6ee30ea5-c318-4f76-ad5e-ec53ae3fe166",
+    "name": "Product 647",
+    "description": "A description for product 70.",
+    "price": 28.8,
+    "stock": 49,
+    "imageUrl": "https://example.com/images/product_615.jpg",
+    "categoryId": "cbed6b5a-7f8d-446c-81b6-4114beca3f7e"
+  },
+  {
+    "id": "f2d01b68-7c10-4889-a885-89e7e1439f8b",
+    "name": "Product 91",
+    "description": "A description for product 742.",
+    "price": 27.6,
+    "stock": 44,
+    "imageUrl": "https://example.com/images/product_869.jpg",
+    "categoryId": "88496fea-abff-4562-bb49-a0f1a5a92ac1"
+  },
+  {
+    "id": "dd90e85e-c96b-4b65-983d-d1c2f808fcf9",
+    "name": "Product 6",
+    "description": "A description for product 808.",
+    "price": 107.42,
+    "stock": 56,
+    "imageUrl": "https://example.com/images/product_548.jpg",
+    "categoryId": "a4ede215-37c8-4358-8b41-9e42b57f7ab7"
+  },
+  {
+    "id": "c21d40fb-a83b-4ae0-ba13-7d4e112291d8",
+    "name": "Product 59",
+    "description": "A description for product 682.",
+    "price": 149.82,
+    "stock": 109,
+    "imageUrl": "https://example.com/images/product_529.jpg",
+    "categoryId": "9f5c02a9-0d8f-4339-96e4-6e5d025fdb32"
+  },
+  {
+    "id": "5b833f75-57a3-440c-ac9a-23394e3244ef",
+    "name": "Product 328",
+    "description": "A description for product 4.",
+    "price": 279.06,
+    "stock": 102,
+    "imageUrl": "https://example.com/images/product_302.jpg",
+    "categoryId": "7a678a6f-4fde-4357-b9e5-924a96a937eb"
+  },
+  {
+    "id": "a04bc41e-829c-4c54-9cdf-c7f94c720b0d",
+    "name": "Product 685",
+    "description": "A description for product 479.",
+    "price": 317.8,
+    "stock": 100,
+    "imageUrl": "https://example.com/images/product_933.jpg",
+    "categoryId": "3ffda02b-8830-4aab-a203-e4f869260e65"
+  },
+  {
+    "id": "ca6e1ef7-f621-4816-b548-2c59e4bc5f34",
+    "name": "Product 190",
+    "description": "A description for product 551.",
+    "price": 189.14,
+    "stock": 89,
+    "imageUrl": "https://example.com/images/product_690.jpg",
+    "categoryId": "f52efd57-062a-43bf-9f47-e9be0d0b6e87"
+  },
+  {
+    "id": "af7c7150-43e3-4c11-9213-d966d291060f",
+    "name": "Product 534",
+    "description": "A description for product 897.",
+    "price": 169.52,
+    "stock": 200,
+    "imageUrl": "https://example.com/images/product_22.jpg",
+    "categoryId": "9c411c3d-ca57-429c-810e-9d06cb06cc25"
+  },
+  {
+    "id": "9a4033be-bd04-4330-8ff7-a3304519b000",
+    "name": "Product 950",
+    "description": "A description for product 152.",
+    "price": 316.78,
+    "stock": 35,
+    "imageUrl": "https://example.com/images/product_284.jpg",
+    "categoryId": "c589e022-3547-4705-b551-bc4b47a232c6"
+  },
+  {
+    "id": "f3a9cff2-bd35-4afe-ac02-2b68f55051f2",
+    "name": "Product 715",
+    "description": "A description for product 660.",
+    "price": 467.31,
+    "stock": 192,
+    "imageUrl": "https://example.com/images/product_273.jpg",
+    "categoryId": "6333e1c0-e9ae-47fc-8b4a-c08592db5667"
+  },
+  {
+    "id": "b6a70203-5c5e-4f07-8400-62eb6930c9f0",
+    "name": "Product 581",
+    "description": "A description for product 733.",
+    "price": 433.54,
+    "stock": 22,
+    "imageUrl": "https://example.com/images/product_155.jpg",
+    "categoryId": "215b2d32-5b0e-4cdb-88f7-2e96c42e6bcd"
+  },
+  {
+    "id": "fd62edbf-48ed-4f12-a3b4-d23c62c799f2",
+    "name": "Product 852",
+    "description": "A description for product 968.",
+    "price": 410.54,
+    "stock": 126,
+    "imageUrl": "https://example.com/images/product_728.jpg",
+    "categoryId": "05ef9df0-8cd1-44e9-b922-a2aa2e210ee4"
+  },
+  {
+    "id": "7aaed5b0-ad1c-4086-86f9-a7cc38e3ba78",
+    "name": "Product 626",
+    "description": "A description for product 522.",
+    "price": 113.88,
+    "stock": 158,
+    "imageUrl": "https://example.com/images/product_136.jpg",
+    "categoryId": "ce45db53-149b-4acb-be82-860b748363bb"
+  },
+  {
+    "id": "b0770b35-8387-4cc7-b935-2c84dc510468",
+    "name": "Product 911",
+    "description": "A description for product 442.",
+    "price": 50.54,
+    "stock": 41,
+    "imageUrl": "https://example.com/images/product_967.jpg",
+    "categoryId": "cc12d70e-af43-4ebf-a163-72d850acc9dc"
+  },
+  {
+    "id": "7a265c5e-e447-446e-8c9b-f189391f57b8",
+    "name": "Product 263",
+    "description": "A description for product 547.",
+    "price": 64.18,
+    "stock": 81,
+    "imageUrl": "https://example.com/images/product_286.jpg",
+    "categoryId": "10967786-253f-41e6-9504-77e2f17d95f0"
+  },
+  {
+    "id": "f467061c-1e9d-4b25-b1a7-fbdf46ae89c2",
+    "name": "Product 46",
+    "description": "A description for product 56.",
+    "price": 169.91,
+    "stock": 90,
+    "imageUrl": "https://example.com/images/product_445.jpg",
+    "categoryId": "83ac5484-c509-4dd1-b142-eb4d01818730"
+  },
+  {
+    "id": "8e0c367d-a563-4160-b231-ba5e5af9ae30",
+    "name": "Product 471",
+    "description": "A description for product 551.",
+    "price": 426.13,
+    "stock": 72,
+    "imageUrl": "https://example.com/images/product_990.jpg",
+    "categoryId": "7b9af89d-a3ab-49ad-8a24-bfc87f3300eb"
+  },
+  {
+    "id": "4c0d3c1d-3c86-44fd-a121-4a4960ae92b8",
+    "name": "Product 952",
+    "description": "A description for product 488.",
+    "price": 80.18,
+    "stock": 169,
+    "imageUrl": "https://example.com/images/product_278.jpg",
+    "categoryId": "ba14db1b-bcb1-44fa-895b-ec661e79467c"
+  },
+  {
+    "id": "e9106d1a-6734-4616-a94b-842eabb6dc25",
+    "name": "Product 193",
+    "description": "A description for product 912.",
+    "price": 416.26,
+    "stock": 158,
+    "imageUrl": "https://example.com/images/product_39.jpg",
+    "categoryId": "d8791bc9-3ce8-4a87-b3ae-ead1a1794ab2"
+  },
+  {
+    "id": "c38a61b9-54ec-4c38-95c1-b99e76044fef",
+    "name": "Product 796",
+    "description": "A description for product 635.",
+    "price": 440.18,
+    "stock": 5,
+    "imageUrl": "https://example.com/images/product_931.jpg",
+    "categoryId": "cab28d25-f740-419a-bc7c-4a27e457aa3a"
+  },
+  {
+    "id": "3ea461e9-ec0c-4a74-b842-34a4c29dc303",
+    "name": "Product 100",
+    "description": "A description for product 108.",
+    "price": 83.35,
+    "stock": 146,
+    "imageUrl": "https://example.com/images/product_547.jpg",
+    "categoryId": "96e726d0-9b15-4ab2-93a2-6f1abdf55d25"
+  },
+  {
+    "id": "7ef50612-4183-4a65-8c3b-de46f1400971",
+    "name": "Product 383",
+    "description": "A description for product 790.",
+    "price": 407.97,
+    "stock": 34,
+    "imageUrl": "https://example.com/images/product_15.jpg",
+    "categoryId": "717ca6bb-99ca-4b2d-9f52-7e9bc584f50a"
+  },
+  {
+    "id": "fe623e87-9252-48b2-b824-f0830f881714",
+    "name": "Product 68",
+    "description": "A description for product 718.",
+    "price": 166.58,
+    "stock": 190,
+    "imageUrl": "https://example.com/images/product_367.jpg",
+    "categoryId": "2888c0e1-854b-433b-82d9-544d75be1998"
+  },
+  {
+    "id": "27ec7694-e299-450e-8178-98c485f04ba1",
+    "name": "Product 819",
+    "description": "A description for product 193.",
+    "price": 215.19,
+    "stock": 91,
+    "imageUrl": "https://example.com/images/product_254.jpg",
+    "categoryId": "ea2e13d2-b308-4452-bfdf-014117745524"
+  },
+  {
+    "id": "86146945-8c99-4f9c-8725-e1a790ebbc5e",
+    "name": "Product 647",
+    "description": "A description for product 59.",
+    "price": 71.48,
+    "stock": 43,
+    "imageUrl": "https://example.com/images/product_986.jpg",
+    "categoryId": "95ae775f-a3b6-4060-ab9b-1c5f7658c15f"
+  },
+  {
+    "id": "133e34e3-49bb-4c0b-b901-3df7150e2186",
+    "name": "Product 57",
+    "description": "A description for product 859.",
+    "price": 355.62,
+    "stock": 121,
+    "imageUrl": "https://example.com/images/product_968.jpg",
+    "categoryId": "ceaea34a-183c-4b2c-9bc9-df8d2525b76a"
+  },
+  {
+    "id": "ed68daea-d6ad-451e-b308-7333f68c57a7",
+    "name": "Product 892",
+    "description": "A description for product 210.",
+    "price": 57.05,
+    "stock": 96,
+    "imageUrl": "https://example.com/images/product_24.jpg",
+    "categoryId": "29c9d325-17c5-4800-8993-72c8c6f22c25"
+  },
+  {
+    "id": "5e769e17-099f-4d72-94a3-1740eb89df4a",
+    "name": "Product 267",
+    "description": "A description for product 629.",
+    "price": 10.99,
+    "stock": 66,
+    "imageUrl": "https://example.com/images/product_473.jpg",
+    "categoryId": "6c143396-0284-4561-95c5-60cb8962d082"
+  }
+]
