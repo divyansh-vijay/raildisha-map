@@ -88,16 +88,16 @@ const App = () => {
 
 	return (
 		<div>
-			<div style={{ position: "absolute", zIndex: 1000, top: 10, left: 10, background: "white", padding: "10px", borderRadius: "8px" }}>
-				<button onClick={() => setSelectedType("vendingMachine")}>Add Vending Machine</button>
-				<button onClick={() => setSelectedType("stairs")} style={{ marginLeft: "10px" }}>Add Stairs</button>
-				<button onClick={() => setSelectedType("bench")} style={{ marginLeft: "10px" }}>Add Bench</button>
+			<div style={{ position: "absolute", zIndex: 1000, bottom: 10, left: 10, background: "white", padding: "4px", fontSize: "12px", borderRadius: "8px" }}>
+				<button style={{ padding: "10px" }} onClick={() => setSelectedType("vendingMachine")}>VM</button>
+				<button onClick={() => setSelectedType("stairs")} style={{ marginLeft: "10px", padding: "10px" }}>ST</button>
+				<button onClick={() => setSelectedType("bench")} style={{ marginLeft: "10px", padding: "10px" }}>BE</button>
 				<button
 					onClick={() => setMapType((prev) => prev === "normal" ? "satellite" : "normal")}
-					style={{ marginLeft: "10px" }}>
-					{mapType === "normal" ? "Switch to Satellite" : "Switch to Normal"}
+					style={{ marginLeft: "10px", padding: "10px" }}>
+					{mapType === "normal" ? "Satellite" : "Normal"}
 				</button>
-				{selectedType && <span style={{ marginLeft: "10px", fontWeight: "bold" }}>Selected: {selectedType}</span>}
+				{selectedType && <span style={{ marginLeft: "10px", padding: "10px", fontWeight: "bold" }}>Selected: {selectedType}</span>}
 			</div>
 
 			<MapContainer center={[26.4494, 80.1935]} zoom={18} maxZoom={30} style={{ height: "100vh", width: "100vw" }}>
@@ -113,7 +113,7 @@ const App = () => {
 					/>
 				)}
 
-				<FeatureGroup>
+				{/* <FeatureGroup>
 					<EditControl
 						position="topright"
 						onCreated={(e) => {
@@ -130,7 +130,7 @@ const App = () => {
 							marker: false, // we already handle markers
 						}}
 					/>
-				</FeatureGroup>
+				</FeatureGroup> */}
 
 				{objects.map((obj, i) => (
 					<Marker key={i} position={obj.latlng} icon={getIconByType(obj.type)}>
@@ -141,12 +141,12 @@ const App = () => {
 				<ClickHandler addLatLng={addLatLng} selectedType={selectedType} />
 			</MapContainer>
 
-			<div style={{ position: "absolute", bottom: 10, left: 10, background: "white", padding: "10px", borderRadius: "8px", maxHeight: "200px", overflowY: "scroll", width: "300px" }}>
+			{/* <div style={{ position: "absolute", bottom: 10, left: 10, background: "white", padding: "10px", borderRadius: "8px", maxHeight: "200px", overflowY: "scroll", width: "300px" }}>
 				<h4>Saved Polygons:</h4>
 				<pre style={{ fontSize: "10px" }}>
 					{JSON.stringify(polygons, null, 2)}
 				</pre>
-			</div>
+			</div> */}
 		</div>
 	)
 }
