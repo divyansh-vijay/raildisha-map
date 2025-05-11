@@ -320,7 +320,10 @@ const MapBuilder = () => {
     const [deadReckoning, setDeadReckoning] = useState(null);
     const hasInitialPosition = useRef(false);
     const mapRef = React.useRef(null);
-
+    // Add these state declarations after other state variables
+    const [stepCount, setStepCount] = useState(0);
+    const [lastAcceleration, setLastAcceleration] = useState({ x: 0, y: 0, z: 0 });
+    const [isInitialPositionSet, setIsInitialPositionSet] = useState(false);
     // Load from localStorage
     // useEffect(() => {
     //     const savedObjs = localStorage.getItem('rd_objects');
@@ -346,7 +349,82 @@ const MapBuilder = () => {
         const newObj = { id: newId, latlng, type };
         setObjects(prev => [...prev, newObj]);
     };
+    const recenterPosition = () => {
+        if (!navigator.geolocation) {
+            alert('Geolocation is not supported');
+            return;
+        }
 
+        navigator.geolocation.getCurrentPosition(
+            (position) => {
+                const newPos = [position.coords.latitude, position.coords.longitude];
+                setUserPosition(newPos);
+
+                if (mapRef.current) {
+                    mapRef.current.setView(newPos, 19);
+                }
+
+                // Update dead reckoning initial position
+                if (deadReckoning) {
+                    deadReckoning.updatePosition(newPos[0], newPos[1]);
+                }
+
+                setIsInitialPositionSet(true);
+            },
+            (error) => {
+                console.error('Error getting position:', error);
+                alert('Error getting location. Please check permissions.');
+            },
+            { enableHighAccuracy: true }
+        );
+    };
+    const handleMotion = (event) => {
+        if (!deadReckoning || !isInitialPositionSet) return;
+
+        const acceleration = {
+            x: event.accelerationIncludingGravity.x,
+            y: event.accelerationIncludingGravity.y,
+            z: event.accelerationIncludingGravity.z
+        };
+
+        // Improved step detection using acceleration magnitude change
+        const accelMagnitude = Math.sqrt(
+            acceleration.x ** 2 +
+            acceleration.y ** 2 +
+            acceleration.z ** 2
+        );
+
+        const lastAccelMagnitude = Math.sqrt(
+            lastAcceleration.x ** 2 +
+            lastAcceleration.y ** 2 +
+            lastAcceleration.z ** 2
+        );
+
+        // Detect step using acceleration peak
+        const magnitudeDelta = Math.abs(accelMagnitude - lastAccelMagnitude);
+        if (magnitudeDelta > DR_CONFIG.stepThreshold) {
+            setStepCount(prev => prev + 1);
+        }
+
+        setLastAcceleration(acceleration);
+
+        const orientation = {
+            alpha: event.rotationRate?.alpha || 0,
+            beta: event.rotationRate?.beta || 0,
+            gamma: event.rotationRate?.gamma || 0
+        };
+
+        if (deadReckoning.processMotion(acceleration, orientation)) {
+            const newPosition = deadReckoning.getPosition();
+            setUserPosition(newPosition);
+            setUserPath(prev => [...prev, newPosition]);
+
+            // Auto-center map if tracking is active
+            if (mapRef.current && isTracking) {
+                mapRef.current.setView(newPosition);
+            }
+        }
+    };
     // For path mode: select from/to nodes
     const handleMarkerClick = id => {
         if (!isAddingPath) return;
@@ -398,64 +476,22 @@ const MapBuilder = () => {
     };
 
     const startTracking = () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported');
+        // Only start DR if we have an initial position
+        if (!isInitialPositionSet) {
+            alert('Please use Recenter GPS first to get initial position');
             return;
         }
 
-        // Get initial position from GPS
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const initialPos = [position.coords.latitude, position.coords.longitude];
-                setUserPosition(initialPos);
-                setUserPath([initialPos]);
-
-                // Initialize dead reckoning with GPS position
-                setDeadReckoning(new DeadReckoning(initialPos[0], initialPos[1]));
-                hasInitialPosition.current = true;
-
-                // Start motion and orientation tracking
-                if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
-                    window.addEventListener('devicemotion', handleMotion);
-                    window.addEventListener('deviceorientation', handleOrientation);
-                } else {
-                    alert('Motion sensors not supported');
-                }
-            },
-            (error) => {
-                console.error('Error getting initial position:', error);
-                alert('Error getting location. Please check permissions.');
-            },
-            { enableHighAccuracy: true }
-        );
-
-        setIsTracking(true);
-    };
-
-    const handleMotion = (event) => {
-        if (!deadReckoning || !hasInitialPosition.current) return;
-
-        const acceleration = {
-            x: event.accelerationIncludingGravity.x,
-            y: event.accelerationIncludingGravity.y,
-            z: event.accelerationIncludingGravity.z
-        };
-
-        const orientation = {
-            alpha: event.rotationRate?.alpha || 0,
-            beta: event.rotationRate?.beta || 0,
-            gamma: event.rotationRate?.gamma || 0
-        };
-
-        if (deadReckoning.processMotion(acceleration, orientation)) {
-            const newPosition = deadReckoning.getPosition();
-            setUserPosition(newPosition);
-            setUserPath(prev => [...prev, newPosition]);
-
-            // Auto-center map
-            if (mapRef.current) {
-                mapRef.current.setView(newPosition);
-            }
+        // Reset step counter
+        setStepCount(0);
+        
+        // Start motion and orientation tracking
+        if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
+            window.addEventListener('devicemotion', handleMotion);
+            window.addEventListener('deviceorientation', handleOrientation);
+            setIsTracking(true);
+        } else {
+            alert('Motion sensors not supported');
         }
     };
 
@@ -511,6 +547,17 @@ const MapBuilder = () => {
                     {mapType === 'normal' ? 'Satellite' : 'Normal'}
                 </button>
                 <button
+                    onClick={recenterPosition}
+                    style={{
+                        margin: '0 4px',
+                        padding: 6,
+                        backgroundColor: '#4285F4',
+                        color: 'white'
+                    }}
+                >
+                    Recenter GPS
+                </button>
+                <button
                     onClick={isTracking ? stopTracking : startTracking}
                     style={{
                         margin: '0 4px',
@@ -518,8 +565,18 @@ const MapBuilder = () => {
                         backgroundColor: isTracking ? '#ff4444' : '#44ff44'
                     }}
                 >
-                    {isTracking ? 'Stop Tracking' : 'Start Tracking'}
+                    {isTracking ? 'Stop Tracking' : 'Start DR Tracking'}
                 </button>
+                {isTracking && (
+                    <span style={{ 
+                        marginLeft: 8, 
+                        padding: '4px 8px', 
+                        backgroundColor: '#f0f0f0', 
+                        borderRadius: 4 
+                    }}>
+                        Steps: {stepCount}
+                    </span>
+                )}
                 {isAddingPath && (fromNode || toNode) && <span style={{ marginLeft: 8 }}>{fromNode && "From : " + fromNode} - {toNode && "To : " + toNode}</span>}
                 {isAddingPath && <span style={{ marginLeft: 8 }}>{!fromNode ? 'Select From' : !toNode ? 'Select To' : 'Draw Line'}</span>}
                 {isAddingBoundary && <span style={{ marginLeft: 8 }}>Draw Boundary</span>}
