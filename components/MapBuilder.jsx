@@ -21,6 +21,13 @@ const PATH_COLORS = {
     arrows: '#FFFFFF'      // White arrows
 };
 
+// Add these constants at the top
+const STEP_CONFIG = {
+    threshold: 10,       // Minimum acceleration change to count as step
+    cooldown: 250,       // Minimum time between steps (ms)
+    lowPassAlpha: 0.1    // Low-pass filter coefficient (0-1)
+};
+
 // === ICONS ===
 const vendingMachineIcon = new L.DivIcon({
     html: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="red" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"/><rect width="2" height="8" x="11" y="4"/><rect width="2" height="2" x="11" y="14"/><rect width="2" height="2" x="11" y="17"/></svg>',
@@ -324,6 +331,8 @@ const MapBuilder = () => {
     const [stepCount, setStepCount] = useState(0);
     const [lastAcceleration, setLastAcceleration] = useState({ x: 0, y: 0, z: 0 });
     const [isInitialPositionSet, setIsInitialPositionSet] = useState(false);
+    const lastStepTime = useRef(0);
+    const filteredAccel = useRef({ x: 0, y: 0, z: 0 });
     // Load from localStorage
     // useEffect(() => {
     //     const savedObjs = localStorage.getItem('rd_objects');
@@ -381,17 +390,25 @@ const MapBuilder = () => {
     const handleMotion = (event) => {
         if (!deadReckoning || !isInitialPositionSet) return;
 
+        const now = Date.now();
         const acceleration = {
             x: event.accelerationIncludingGravity.x,
             y: event.accelerationIncludingGravity.y,
             z: event.accelerationIncludingGravity.z
         };
 
-        // Improved step detection using acceleration magnitude change
+        // Apply low-pass filter to smooth acceleration data
+        filteredAccel.current = {
+            x: filteredAccel.current.x + STEP_CONFIG.lowPassAlpha * (acceleration.x - filteredAccel.current.x),
+            y: filteredAccel.current.y + STEP_CONFIG.lowPassAlpha * (acceleration.y - filteredAccel.current.y),
+            z: filteredAccel.current.z + STEP_CONFIG.lowPassAlpha * (acceleration.z - filteredAccel.current.z)
+        };
+
+        // Calculate acceleration magnitude
         const accelMagnitude = Math.sqrt(
-            acceleration.x ** 2 +
-            acceleration.y ** 2 +
-            acceleration.z ** 2
+            filteredAccel.current.x ** 2 +
+            filteredAccel.current.y ** 2 +
+            filteredAccel.current.z ** 2
         );
 
         const lastAccelMagnitude = Math.sqrt(
@@ -400,13 +417,16 @@ const MapBuilder = () => {
             lastAcceleration.z ** 2
         );
 
-        // Detect step using acceleration peak
+        // Detect step using peak detection with cooldown
         const magnitudeDelta = Math.abs(accelMagnitude - lastAccelMagnitude);
-        if (magnitudeDelta > DR_CONFIG.stepThreshold) {
+        if (magnitudeDelta > STEP_CONFIG.threshold && 
+            (now - lastStepTime.current) > STEP_CONFIG.cooldown) {
             setStepCount(prev => prev + 1);
+            lastStepTime.current = now;
+            console.log('Step detected:', magnitudeDelta); // Debug log
         }
 
-        setLastAcceleration(acceleration);
+        setLastAcceleration(filteredAccel.current);
 
         const orientation = {
             alpha: event.rotationRate?.alpha || 0,
@@ -425,6 +445,84 @@ const MapBuilder = () => {
             }
         }
     };
+    // Add this function and call it when starting tracking
+    const requestSensorPermissions = async () => {
+        try {
+            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+                const motionPermission = await DeviceMotionEvent.requestPermission();
+                const orientationPermission = await DeviceOrientationEvent.requestPermission();
+                
+                if (motionPermission === 'granted' && orientationPermission === 'granted') {
+                    return true;
+                }
+            }
+            return false;
+        } catch (error) {
+            console.error('Error requesting sensor permissions:', error);
+            return false;
+        }
+    };
+
+    // Update startTracking to use this
+    const startTracking = async () => {
+        if (!isInitialPositionSet) {
+            alert('Please use Recenter GPS first to get initial position');
+            return;
+        }
+
+        // Request permissions if needed
+        const hasPermissions = await requestSensorPermissions();
+        if (!hasPermissions) {
+            alert('Sensor permissions required for step tracking');
+            return;
+        }
+
+        setStepCount(0);
+        lastStepTime.current = 0;
+        filteredAccel.current = { x: 0, y: 0, z: 0 };
+
+        if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
+            window.addEventListener('devicemotion', handleMotion);
+            window.addEventListener('deviceorientation', handleOrientation);
+            setIsTracking(true);
+        } else {
+            alert('Motion sensors not supported');
+        }
+    };
+
+    const handleOrientation = (event) => {
+        if (!deadReckoning || !hasInitialPosition.current) return;
+
+        // Calibrate using true heading if available
+        if (event.webkitCompassHeading) {
+            deadReckoning.calibrate(event.webkitCompassHeading);
+        }
+    };
+
+    const stopTracking = () => {
+        if (isTracking) {
+            window.removeEventListener('devicemotion', handleMotion);
+            window.removeEventListener('deviceorientation', handleOrientation);
+            setIsTracking(false);
+            hasInitialPosition.current = false;
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            window.removeEventListener('devicemotion', handleMotion);
+            window.removeEventListener('deviceorientation', handleOrientation);
+        };
+    }, [deadReckoning]);
+
+    useEffect(() => {
+        return () => {
+            if (watchId) {
+                navigator.geolocation.clearWatch(watchId);
+            }
+        };
+    }, [watchId]);
+
     // For path mode: select from/to nodes
     const handleMarkerClick = id => {
         if (!isAddingPath) return;
@@ -475,59 +573,6 @@ const MapBuilder = () => {
         setIsAddingBoundary(false);
     };
 
-    const startTracking = () => {
-        // Only start DR if we have an initial position
-        if (!isInitialPositionSet) {
-            alert('Please use Recenter GPS first to get initial position');
-            return;
-        }
-
-        // Reset step counter
-        setStepCount(0);
-        
-        // Start motion and orientation tracking
-        if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
-            window.addEventListener('devicemotion', handleMotion);
-            window.addEventListener('deviceorientation', handleOrientation);
-            setIsTracking(true);
-        } else {
-            alert('Motion sensors not supported');
-        }
-    };
-
-    const handleOrientation = (event) => {
-        if (!deadReckoning || !hasInitialPosition.current) return;
-
-        // Calibrate using true heading if available
-        if (event.webkitCompassHeading) {
-            deadReckoning.calibrate(event.webkitCompassHeading);
-        }
-    };
-
-    const stopTracking = () => {
-        if (isTracking) {
-            window.removeEventListener('devicemotion', handleMotion);
-            window.removeEventListener('deviceorientation', handleOrientation);
-            setIsTracking(false);
-            hasInitialPosition.current = false;
-        }
-    };
-
-    useEffect(() => {
-        return () => {
-            window.removeEventListener('devicemotion', handleMotion);
-            window.removeEventListener('deviceorientation', handleOrientation);
-        };
-    }, [deadReckoning]);
-
-    useEffect(() => {
-        return () => {
-            if (watchId) {
-                navigator.geolocation.clearWatch(watchId);
-            }
-        };
-    }, [watchId]);
-
     return (
         <div>
             {/* Controls panel */}
@@ -568,11 +613,11 @@ const MapBuilder = () => {
                     {isTracking ? 'Stop Tracking' : 'Start DR Tracking'}
                 </button>
                 {isTracking && (
-                    <span style={{ 
-                        marginLeft: 8, 
-                        padding: '4px 8px', 
-                        backgroundColor: '#f0f0f0', 
-                        borderRadius: 4 
+                    <span style={{
+                        marginLeft: 8,
+                        padding: '4px 8px',
+                        backgroundColor: '#f0f0f0',
+                        borderRadius: 4
                     }}>
                         Steps: {stepCount}
                     </span>
