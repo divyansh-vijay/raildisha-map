@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
     MapContainer,
     TileLayer,
@@ -41,6 +41,13 @@ const getIconByType = type => {
         case "bench": return benchIcon;
         default: return null;
     }
+};
+// Add these constants for dead reckoning and Kalman filter
+const DR_CONFIG = {
+    stepLength: 0.7, // meters
+    headingOffset: 0, // calibration offset
+    stepThreshold: 1.0, // acceleration threshold for step detection
+    timeThreshold: 250 // minimum time between steps (ms)
 };
 
 // Add these helper functions at the top level
@@ -310,6 +317,8 @@ const MapBuilder = () => {
     const [userPath, setUserPath] = useState([]);
     const [isTracking, setIsTracking] = useState(false);
     const [watchId, setWatchId] = useState(null);
+    const [deadReckoning, setDeadReckoning] = useState(null);
+    const hasInitialPosition = useRef(false);
     const mapRef = React.useRef(null);
 
     // Load from localStorage
@@ -390,45 +399,90 @@ const MapBuilder = () => {
 
     const startTracking = () => {
         if (!navigator.geolocation) {
-            alert('Geolocation is not supported by your browser');
+            alert('Geolocation is not supported');
             return;
         }
 
-        // Start watching position
-        const id = navigator.geolocation.watchPosition(
+        // Get initial position from GPS
+        navigator.geolocation.getCurrentPosition(
             (position) => {
-                const newPos = [position.coords.latitude, position.coords.longitude];
-                
-                setUserPosition(newPos);
-                setUserPath(prev => [...prev, newPos]);
-                
-                // Auto-center map on user
-                if (mapRef.current) {
-                    mapRef.current.setView(newPos);
+                const initialPos = [position.coords.latitude, position.coords.longitude];
+                setUserPosition(initialPos);
+                setUserPath([initialPos]);
+
+                // Initialize dead reckoning with GPS position
+                setDeadReckoning(new DeadReckoning(initialPos[0], initialPos[1]));
+                hasInitialPosition.current = true;
+
+                // Start motion and orientation tracking
+                if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
+                    window.addEventListener('devicemotion', handleMotion);
+                    window.addEventListener('deviceorientation', handleOrientation);
+                } else {
+                    alert('Motion sensors not supported');
                 }
             },
             (error) => {
-                console.error('Error getting location:', error);
+                console.error('Error getting initial position:', error);
                 alert('Error getting location. Please check permissions.');
             },
-            {
-                enableHighAccuracy: true,
-                maximumAge: 1000,
-                timeout: 20000
-            }
+            { enableHighAccuracy: true }
         );
-        
-        setWatchId(id);
+
         setIsTracking(true);
     };
 
-    const stopTracking = () => {
-        if (watchId) {
-            navigator.geolocation.clearWatch(watchId);
-            setWatchId(null);
+    const handleMotion = (event) => {
+        if (!deadReckoning || !hasInitialPosition.current) return;
+
+        const acceleration = {
+            x: event.accelerationIncludingGravity.x,
+            y: event.accelerationIncludingGravity.y,
+            z: event.accelerationIncludingGravity.z
+        };
+
+        const orientation = {
+            alpha: event.rotationRate?.alpha || 0,
+            beta: event.rotationRate?.beta || 0,
+            gamma: event.rotationRate?.gamma || 0
+        };
+
+        if (deadReckoning.processMotion(acceleration, orientation)) {
+            const newPosition = deadReckoning.getPosition();
+            setUserPosition(newPosition);
+            setUserPath(prev => [...prev, newPosition]);
+
+            // Auto-center map
+            if (mapRef.current) {
+                mapRef.current.setView(newPosition);
+            }
         }
-        setIsTracking(false);
     };
+
+    const handleOrientation = (event) => {
+        if (!deadReckoning || !hasInitialPosition.current) return;
+
+        // Calibrate using true heading if available
+        if (event.webkitCompassHeading) {
+            deadReckoning.calibrate(event.webkitCompassHeading);
+        }
+    };
+
+    const stopTracking = () => {
+        if (isTracking) {
+            window.removeEventListener('devicemotion', handleMotion);
+            window.removeEventListener('deviceorientation', handleOrientation);
+            setIsTracking(false);
+            hasInitialPosition.current = false;
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            window.removeEventListener('devicemotion', handleMotion);
+            window.removeEventListener('deviceorientation', handleOrientation);
+        };
+    }, [deadReckoning]);
 
     useEffect(() => {
         return () => {
@@ -456,10 +510,10 @@ const MapBuilder = () => {
                 <button onClick={() => setMapType(prev => prev === 'normal' ? 'satellite' : 'normal')} style={{ margin: '0 4px', padding: 6 }}>
                     {mapType === 'normal' ? 'Satellite' : 'Normal'}
                 </button>
-                <button 
+                <button
                     onClick={isTracking ? stopTracking : startTracking}
-                    style={{ 
-                        margin: '0 4px', 
+                    style={{
+                        margin: '0 4px',
                         padding: 6,
                         backgroundColor: isTracking ? '#ff4444' : '#44ff44'
                     }}
@@ -471,10 +525,10 @@ const MapBuilder = () => {
                 {isAddingBoundary && <span style={{ marginLeft: 8 }}>Draw Boundary</span>}
             </div>
 
-            <MapContainer 
-                center={userPosition || [26.4494, 80.1935]} 
-                zoom={18} 
-                maxZoom={30} 
+            <MapContainer
+                center={userPosition || [26.4494, 80.1935]}
+                zoom={18}
+                maxZoom={30}
                 style={{ height: '100vh', width: '100vw' }}
                 ref={mapRef}
             >
@@ -613,7 +667,7 @@ const MapBuilder = () => {
                                     lineCap="round"
                                     lineJoin="round"
                                 />
-                                
+
                                 {/* Main path */}
                                 <Polyline
                                     positions={userPath}
