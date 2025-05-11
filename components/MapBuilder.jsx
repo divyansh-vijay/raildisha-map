@@ -445,35 +445,47 @@ const MapBuilder = () => {
             }
         }
     };
-    // Add this function and call it when starting tracking
     const requestSensorPermissions = async () => {
         try {
-            if (typeof DeviceMotionEvent.requestPermission === 'function') {
+            // iOS Safari
+            if (typeof DeviceMotionEvent.requestPermission === 'function' && 
+                typeof DeviceOrientationEvent.requestPermission === 'function') {
                 const motionPermission = await DeviceMotionEvent.requestPermission();
                 const orientationPermission = await DeviceOrientationEvent.requestPermission();
                 
-                if (motionPermission === 'granted' && orientationPermission === 'granted') {
-                    return true;
+                return (motionPermission === 'granted' && orientationPermission === 'granted');
+            } 
+            // Android Chrome and other browsers
+            else {
+                // Check if sensors are available
+                if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
+                    return true; // Permissions are implied on Android
                 }
+                return false;
             }
-            return false;
         } catch (error) {
             console.error('Error requesting sensor permissions:', error);
-            return false;
+            // If error occurs, still try to use sensors if available
+            return !!(window.DeviceMotionEvent && window.DeviceOrientationEvent);
         }
     };
 
-    // Update startTracking to use this
     const startTracking = async () => {
         if (!isInitialPositionSet) {
             alert('Please use Recenter GPS first to get initial position');
             return;
         }
 
-        // Request permissions if needed
+        // Check if running on HTTPS
+        if (window.location.protocol !== 'https:') {
+            alert('Sensors require HTTPS. Please use a secure connection.');
+            return;
+        }
+
+        // Try to get permissions
         const hasPermissions = await requestSensorPermissions();
         if (!hasPermissions) {
-            alert('Sensor permissions required for step tracking');
+            alert('Motion sensors not available or permission denied');
             return;
         }
 
@@ -481,13 +493,9 @@ const MapBuilder = () => {
         lastStepTime.current = 0;
         filteredAccel.current = { x: 0, y: 0, z: 0 };
 
-        if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
-            window.addEventListener('devicemotion', handleMotion);
-            window.addEventListener('deviceorientation', handleOrientation);
-            setIsTracking(true);
-        } else {
-            alert('Motion sensors not supported');
-        }
+        window.addEventListener('devicemotion', handleMotion);
+        window.addEventListener('deviceorientation', handleOrientation);
+        setIsTracking(true);
     };
 
     const handleOrientation = (event) => {
