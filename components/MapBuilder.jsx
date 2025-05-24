@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
     MapContainer,
     TileLayer,
@@ -13,7 +14,7 @@ import { EditControl } from "react-leaflet-draw";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import L from "leaflet";
-import MapViewer3D from './MapViewer3D';
+import MapViewer2D from './MapViewer2D';
 import { FaMap, FaRoute, FaDrawPolygon, FaChevronLeft, FaChevronRight, FaUpload, FaDownload, FaMapMarkerAlt, FaUtensils, FaShoppingBag, FaBuilding, FaParking, FaInfoCircle, FaMarker, FaUser, FaStore, FaCoffee, FaBook, FaFirstAid, FaWheelchair, FaArrowUp, FaDoorOpen } from 'react-icons/fa';
 import { FaStairs } from "react-icons/fa6";
 import { SiBlockbench } from "react-icons/si";
@@ -167,14 +168,13 @@ const CUSTOM_MARKER_TYPES = {
 };
 
 export default function MapBuilder() {
+    const navigate = useNavigate();
     // Initialize state with null to prevent premature rendering
     const [floors, setFloors] = useState(null);
     const [selectedFloor, setSelectedFloor] = useState(null);
     const [floorData, setFloorData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const mapRef = useRef(null);
-    // const [selectedPathIndex, setSelectedPathIndex] = useState(null);
-    const [isViewer, setIsViewer] = useState(false);
     const [highlightedObjectId, setHighlightedObjectId] = useState(null);
     const [highlightedRouteIdx, setHighlightedRouteIdx] = useState(null);
     const [showSaveToast, setShowSaveToast] = useState(false);
@@ -186,11 +186,9 @@ export default function MapBuilder() {
     const drawControlRef = useRef(null);
     const featureGroupRef = useRef(null);
     const [currentMeasurement, setCurrentMeasurement] = useState(null);
-    // Add new states for path creation
     const [pathFromMarker, setPathFromMarker] = useState(null);
     const [pathToMarker, setPathToMarker] = useState(null);
-    const [pathCreationStep, setPathCreationStep] = useState(null); // 'from', 'to', 'draw'
-    // Add new state for marker details
+    const [pathCreationStep, setPathCreationStep] = useState(null);
     const [selectedMarker, setSelectedMarker] = useState(null);
     const [showMarkerDetails, setShowMarkerDetails] = useState(false);
 
@@ -548,13 +546,16 @@ export default function MapBuilder() {
                     { x: toMarker.latlng[1], y: toMarker.latlng[0] } // to marker position
                 ];
 
+                // Get existing routes for merging
+                const existingRoutes = floorData[selectedFloor].routes || [];
+
                 // Create the new path with marker references
                 const newPath = {
                     id: `path_${Date.now()}`,
                     type: 'corridor',
                     from: pathFromMarker?.id,
                     to: pathToMarker?.id,
-                    path: adjustedPath
+                    path: getMergedPath({ path: adjustedPath }, existingRoutes, floorData[selectedFloor].objects)
                 };
 
                 setFloorData(prev => {
@@ -583,8 +584,8 @@ export default function MapBuilder() {
         setDrawingMode(null);
     };
 
-    // Add drawing event handlers
-    const handleDrawStart = (e) => {
+    // Fix handleDrawStart
+    const handleDrawStart = () => {
         setCurrentMeasurement(null);
     };
 
@@ -794,7 +795,6 @@ export default function MapBuilder() {
                     const isInnerBoundary = layer.options.options.type === 'innerBoundary';
                     const boundaries = isInnerBoundary ? floor.innerBoundaries : floor.boundaries;
                     const updatedBoundaries = boundaries.filter(boundary => boundary.id !== polygonId);
-                    console.log(isInnerBoundary, boundaries, updatedBoundaries);
                     const newData = {
                         ...prev,
                         [selectedFloor]: {
@@ -944,32 +944,8 @@ export default function MapBuilder() {
         );
     }
 
-    // Early return for viewer mode
-    if (isViewer) {
-        console.log('Entering viewer mode with data:', {
-            floorData,
-            selectedFloor,
-            floors,
-            hasFloorData: !!floorData,
-            hasSelectedFloor: !!selectedFloor,
-            floorDataKeys: floorData ? Object.keys(floorData) : [],
-            selectedFloorData: floorData && selectedFloor ? floorData[selectedFloor] : null
-        });
-        return (
-            <MapViewer3D
-                floorData={floorData}
-                selectedFloor={selectedFloor}
-            />
-        );
-    }
-
     // Early return for no floor data
     if (!selectedFloor || !floorData || !floorData[selectedFloor]) {
-        console.log('No floor data available:', {
-            selectedFloor,
-            hasFloorData: !!floorData,
-            floorDataKeys: floorData ? Object.keys(floorData) : []
-        });
         return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f7f7fa' }}>
                 <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>Initializing map...</div>
@@ -1184,7 +1160,7 @@ export default function MapBuilder() {
                     <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
                         <button onClick={handleSaveToLocalStorage} style={{ background: '#4285F4', color: 'white', border: 'none', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14 }} title="Save to LocalStorage">Save</button>
                         <button onClick={handleLoadFromLocalStorage} style={{ background: '#1976d2', color: 'white', border: 'none', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14 }} title="Load from LocalStorage">Load</button>
-                        <button onClick={() => setIsViewer(true)} style={{ background: '#222', color: 'white', border: 'none', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14 }} title="View Map">View Map</button>
+                        <button onClick={() => navigate('/viewer')} style={{ background: '#222', color: 'white', border: 'none', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14 }} title="View Map">View Map</button>
                         <button onClick={handleExportJSON} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Export JSON"><FaDownload />Export</button>
                         <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Import JSON"><FaUpload />Import</button>
                         <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleImportJSON} />
@@ -1528,7 +1504,7 @@ export default function MapBuilder() {
                                 ))}
 
                                 {/* Add existing boundaries */}
-                                {floorData[selectedFloor]?.boundaries?.map((boundary, i) => (
+                                {floorData[selectedFloor]?.boundaries?.map((boundary) => (
                                     <Polygon
                                         key={boundary.id}
                                         positions={boundary.geometry.coordinates[0].map(c => [c[1], c[0]])}
@@ -1550,7 +1526,7 @@ export default function MapBuilder() {
                                 ))}
 
                                 {/* Add existing inner boundaries */}
-                                {floorData[selectedFloor]?.innerBoundaries?.map((boundary, i) => (
+                                {floorData[selectedFloor]?.innerBoundaries?.map((boundary) => (
                                     <Polygon
                                         key={boundary.id}
                                         positions={boundary.geometry.coordinates[0].map(c => [c[1], c[0]])}
@@ -1573,7 +1549,7 @@ export default function MapBuilder() {
                                 ))}
 
                                 {/* Add existing routes */}
-                                {floorData[selectedFloor]?.routes?.map((route, i) => (
+                                {floorData[selectedFloor]?.routes?.map((route) => (
                                     <Polyline
                                         key={route.id}
                                         positions={route.path.map(p => [p.y, p.x])}

@@ -1,17 +1,19 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import MapBuilder from '../components/MapBuilder';
+import MapViewer2D from '../components/MapViewer2D';
+import './App.css';
 
-// import { useState, useEffect } from "react"
-
-import MapBuilder from "../components/MapBuilder.jsx"
-
-const App = () => {
-
-
-
+function App() {
 	return (
-		<div>
-			<MapBuilder></MapBuilder>
-		</div>
-	)
+		<Router>
+			<Routes>
+				<Route path="/builder" element={<MapBuilder />} />
+				<Route path="/viewer" element={<MapViewer2D />} />
+				<Route path="/" element={<Navigate to="/builder" replace />} />
+			</Routes>
+		</Router>
+	);
 }
 
-export default App
+export default App;
