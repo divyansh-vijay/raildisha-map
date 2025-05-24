@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
     MapContainer,
     TileLayer,
     FeatureGroup,
-    useMapEvents,
     Marker,
     Popup,
     Polyline,
@@ -14,6 +13,10 @@ import { EditControl } from "react-leaflet-draw";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import L from "leaflet";
+import MapViewer3D from './MapViewer3D';
+import { FaMap, FaRoute, FaDrawPolygon, FaChevronLeft, FaChevronRight, FaUpload, FaDownload, FaMapMarkerAlt, FaUtensils, FaShoppingBag, FaBuilding, FaParking, FaInfoCircle, FaMarker, FaUser, FaStore, FaCoffee, FaBook, FaFirstAid, FaWheelchair, FaArrowUp, FaDoorOpen } from 'react-icons/fa';
+import { FaStairs } from "react-icons/fa6";
+import { SiBlockbench } from "react-icons/si";
 // Add these constants at the top with other constants
 const PATH_COLORS = {
     primary: '#fcd89a',    // Google Maps blue
@@ -29,26 +32,8 @@ const STEP_CONFIG = {
 };
 
 // === ICONS ===
-const vendingMachineIcon = new L.DivIcon({
-    html: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="red" viewBox="0 0 24 24"><rect width="16" height="20" x="4" y="2" rx="2"/><rect width="2" height="8" x="11" y="4"/><rect width="2" height="2" x="11" y="14"/><rect width="2" height="2" x="11" y="17"/></svg>',
-    className: '', iconSize: [24, 24], iconAnchor: [12, 24]
-});
-const stairsIcon = new L.DivIcon({
-    html: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="blue" viewBox="0 0 24 24"><path d="M4 20h16v-2H6v-2h4v-2h4v-2h4v-2H10v2H6v2H4v6z"/></svg>',
-    className: '', iconSize: [24, 24], iconAnchor: [12, 24]
-});
-const benchIcon = new L.DivIcon({
-    html: '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="green" viewBox="0 0 24 24"><path d="M4 10h16v2H4v-2zm0 4h16v2H4v-2zm1 4h2v2H5v-2zm12 0h2v2h-2v-2z"/></svg>',
-    className: '', iconSize: [24, 24], iconAnchor: [12, 24]
-});
-const getIconByType = type => {
-    switch (type) {
-        case "vendingMachine": return vendingMachineIcon;
-        case "stairs": return stairsIcon;
-        case "bench": return benchIcon;
-        default: return null;
-    }
-};
+// const getIconByType = type => { ... };
+
 // Add these constants for dead reckoning and Kalman filter
 const DR_CONFIG = {
     stepLength: 0.7, // meters
@@ -105,7 +90,7 @@ const findNearbyPoints = (point, allRoutes, objects, threshold = MERGE_THRESHOLD
 const getMergedPath = (route, allRoutes, objects) => {
     const mergedPath = [];
 
-    route.path.forEach((point, index) => {
+    route.path.forEach((point) => {
         const nearbyPoints = findNearbyPoints(point, allRoutes, objects);
 
         if (nearbyPoints.length > 0) {
@@ -130,672 +115,1508 @@ const getMergedPath = (route, allRoutes, objects) => {
     return mergedPath;
 };
 
-// Handle marker placement clicks
-const ClickHandler = ({ addLatLng, selectedType, isAddingPath }) => {
-    useMapEvents({
-        click: e => {
-            if (!isAddingPath && selectedType) addLatLng([e.latlng.lat, e.latlng.lng], selectedType);
-        }
-    });
-    return null;
+
+// Add POI types and icons
+const POI_TYPES = {
+    restaurant: { icon: FaUtensils, color: '#e53935', label: 'Restaurant' },
+    shop: { icon: FaShoppingBag, color: '#8e24aa', label: 'Shop' },
+    toilet: { icon: FaBuilding, color: '#43a047', label: 'Toilet' },  // Changed from FaWc to FaBuilding
+    office: { icon: FaBuilding, color: '#1e88e5', label: 'Office' },
+    parking: { icon: FaParking, color: '#fb8c00', label: 'Parking' },
+    info: { icon: FaInfoCircle, color: '#00acc1', label: 'Information' }
 };
 
-// Track zoom changes
-const ZoomHandler = ({ setZoom }) => {
-    useMapEvents({ zoomend: e => setZoom(e.target.getZoom()) });
-    return null;
-};
 
-const MapBuilder = () => {
-    // State
-    const [objects, setObjects] = useState([
-        {
-            "id": "vendingMachine_1",
-            "latlng": [
-                26.45014692079585,
-                80.19301503896715
-            ],
-            "type": "vendingMachine"
-        },
-        {
-            "id": "stairs_2",
-            "latlng": [
-                26.450071232242305,
-                80.19295737147331
-            ],
-            "type": "stairs"
-        },
-        {
-            "id": "bench_3",
-            "latlng": [
-                26.44988020852889,
-                80.19285544753076
-            ],
-            "type": "bench"
-        },
-        {
-            "id": "bench_4",
-            "latlng": [
-                26.449830950790382,
-                80.19290506839754
-            ],
-            "type": "bench"
-        },
-        {
-            "id": "bench_5",
-            "latlng": [
-                26.450119288472514,
-                80.19316121935846
-            ],
-            "type": "bench"
-        },
-        {
-            "id": "bench_6",
-            "latlng": [
-                26.45008444770761,
-                80.19319608807564
-            ],
-            "type": "bench"
-        }
-    ]);
-    const [routes, setRoutes] = useState([
-        {
-            "from": "vendingMachine_1",
-            "to": "bench_3",
-            "type": "corridor",
-            "weight": 2,
-            "path": [
-                {
-                    "x": 80.19301503896715,
-                    "y": 26.450158860237014
-                },
-                {
-                    "x": 80.19285544753076,
-                    "y": 26.449895752221284
-                }
-            ]
-        },
-        {
-            "from": "bench_3",
-            "to": "bench_6",
-            "type": "corridor",
-            "weight": 2,
-            "path": [
-                {
-                    "x": 80.19285812973978,
-                    "y": 26.4498868402302
-                },
-                {
-                    "x": 80.19319407641889,
-                    "y": 26.450090478694275
-                }
-            ]
-        },
-        {
-            "from": "bench_3",
-            "to": "bench_4",
-            "type": "corridor",
-            "weight": 2,
-            "path": [
-                {
-                    "x": 80.19285544753076,
-                    "y": 26.44988020852889
-                },
-                {
-                    "x": 80.19290506839754,
-                    "y": 26.449830950790382
-                }
-            ]
-        },
-        {
-            "from": "bench_5",
-            "to": "bench_4",
-            "type": "corridor",
-            "weight": 6,
-            "path": [
-                {
-                    "x": 80.19316121935846,
-                    "y": 26.450119288472514
-                },
-                {
-                    "x": 80.19301486768379,
-                    "y": 26.45015295691295
-                },
-                {
-                    "x": 80.19293443630978,
-                    "y": 26.450095890154028
-                },
-                {
-                    "x": 80.19283054578501,
-                    "y": 26.45002500719302
-                },
-                {
-                    "x": 80.19280306506559,
-                    "y": 26.44995172137389
-                },
-                {
-                    "x": 80.19290506839754,
-                    "y": 26.449830950790382
-                }
-            ]
-        }
-    ]);
-    const [boundaries, setBoundaries] = useState([
-        {
-            "type": "Feature",
-            "properties": {},
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [
-                    [
-                        [
-                            80.192927,
-                            26.449739
-                        ],
-                        [
-                            80.192717,
-                            26.449994
-                        ],
-                        [
-                            80.19305,
-                            26.450253
-                        ],
-                        [
-                            80.193281,
-                            26.450046
-                        ],
-                        [
-                            80.192927,
-                            26.449739
-                        ]
-                    ]
-                ]
-            }
-        }
-    ]);
-    const [mapType, setMapType] = useState("normal");
-    const [selectedType, setSelectedType] = useState(null);
-    const [isAddingPath, setIsAddingPath] = useState(false);
-    const [fromNode, setFromNode] = useState("");
-    const [toNode, setToNode] = useState("");
-    const [isAddingBoundary, setIsAddingBoundary] = useState(false);
-    const [zoomLevel, setZoomLevel] = useState(18);
-    const [userPosition, setUserPosition] = useState(null);
-    const [userPath, setUserPath] = useState([]);
-    const [isTracking, setIsTracking] = useState(false);
-    const [watchId, setWatchId] = useState(null);
-    const [deadReckoning, setDeadReckoning] = useState(null);
-    const hasInitialPosition = useRef(false);
-    const mapRef = React.useRef(null);
-    // Add these state declarations after other state variables
-    const [stepCount, setStepCount] = useState(0);
-    const [lastAcceleration, setLastAcceleration] = useState({ x: 0, y: 0, z: 0 });
-    const [isInitialPositionSet, setIsInitialPositionSet] = useState(false);
-    const lastStepTime = useRef(0);
-    const filteredAccel = useRef({ x: 0, y: 0, z: 0 });
-    // Load from localStorage
-    // useEffect(() => {
-    //     const savedObjs = localStorage.getItem('rd_objects');
-    //     const savedRts = localStorage.getItem('rd_routes');
-    //     const savedBnds = localStorage.getItem('rd_boundaries');
-    //     if (savedObjs) setObjects(JSON.parse(savedObjs));
-    //     if (savedRts) setRoutes(JSON.parse(savedRts));
-    //     if (savedBnds) setBoundaries(JSON.parse(savedBnds));
-    // }, []);
-
-    useEffect(() => {
-        console.log(objects, routes, boundaries);
-    }, [objects, routes, boundaries]);
-
-    // Save to localStorage
-    // useEffect(() => localStorage.setItem('rd_objects', JSON.stringify(objects)), [objects]);
-    // useEffect(() => localStorage.setItem('rd_routes', JSON.stringify(routes)), [routes]);
-    // useEffect(() => localStorage.setItem('rd_boundaries', JSON.stringify(boundaries)), [boundaries]);
-
-    // Add new facility marker
-    const addLatLng = (latlng, type) => {
-        const newId = `${type}_${objects.length + 1}`;
-        const newObj = { id: newId, latlng, type };
-        setObjects(prev => [...prev, newObj]);
+// Helper function to get icon path
+const getIconPath = (IconComponent) => {
+    const paths = {
+        // POI icons
+        FaUtensils: "M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z",
+        FaShoppingBag: "M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-8 4c0 .55-.45 1-1 1s-1-.45-1-1V8h2v2zm2-6c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm4 6c0 .55-.45 1-1 1s-1-.45-1-1V8h2v2z",
+        FaBuilding: "M17 11V3H7v4H3v14h18V11H17zM7 19H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm4 8H9v-2h2v2zm0-4H9v-2h2v2zm0-4H9V5h2v2zm4 12h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2z",
+        FaParking: "M13 3H6v18h4v-6h3c3.31 0 6-2.69 6-6s-2.69-6-6-6zm.2 8H10V7h3.2c1.1 0 2 .9 2 2s-.9 2-2 2z",
+        FaInfoCircle: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
+        // Custom marker icons
+        FaUser: "M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z",
+        FaStore: "M20 4H4v2h16V4zm1 10v-2l-1-5H4l-1 5v2h1v6h10v-6h4v6h2v-6h1zm-9 4H6v-4h6v4z",
+        FaCoffee: "M2 21h18v-2H2v2zm6-4h12v-2H8v2zm-6-4h16v-2H2v2zm22-4v2c0 1.1-.9 2-2 2H2v-2c0-1.1.9-2 2-2h16c1.1 0 2 .9 2 2zm-2-6H4v2h16V7z",
+        FaBook: "M18 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 4h5v8l-2.5-1.5L6 12V4z",
+        FaFirstAid: "M19 3H5c-1.1 0-1.99.9-1.99 2L3 19c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-2 10h-4v4h-2v-4H7v-2h4V7h2v4h4v2z",
+        FaWheelchair: "M19 13v-2c-1.54.02-3.09-.75-4.07-1.83l-1.29-1.43c-.17-.19-.38-.34-.61-.45-.01 0-.01-.01H13c-.35-.2-.75-.3-1.19-.26C10.76 7.11 10 8.04 10 9.09V15c0 1.1.9 2 2 2h5v5h2v-5.5c0-1.1-.9-2-2-2h-3v-3.45c1.29 1.07 3.25 1.94 5 1.95zm-6.17 5c-.41 1.16-1.52 2-2.83 2-1.66 0-3-1.34-3-3 0-1.31.84-2.41 2-2.83V12.1c-2.28.46-4 2.48-4 4.9 0 2.76 2.24 5 5 5 2.42 0 4.44-1.72 4.9-4h-2.07z",
+        FaArrowUp: "M4 12l1.41 1.41L11 7.83V20h2V7.83l5.58 5.59L20 12l-8-8-8 8z",
+        FaDoorOpen: "M12 3c-4.97 0-9 4.03-9 9h2c0-3.87 3.13-7 7-7s7 3.13 7 7h2c0-4.97-4.03-9-9-9zm0 14c-2.76 0-5-2.24-5-5h2c0 1.66 1.34 3 3 3s3-1.34 3-3h2c0 2.76-2.24 5-5 5z",
+        FaMarker: "M17.5 4.5c-1.484 0-2.5 1.016-2.5 2.5s1.016 2.5 2.5 2.5 2.5-1.016 2.5-2.5-1.016-2.5-2.5-2.5zm-3.5 2.5c0-1.484 1.016-2.5 2.5-2.5s2.5 1.016 2.5 2.5-1.016 2.5-2.5 2.5-2.5-1.016-2.5-2.5z",
+        // Add stairs icon
+        FaStairs: "M3 5v14h18V5H3zm16 12H5V7h14v10zM7 9h2v2H7V9zm0 4h2v2H7v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2zm4-4h2v2h-2V9zm0 4h2v2h-2v-2z",
+        // Add vending machine icon
+        FaVendingMachine: "M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 8h2v2H6V8zm0 4h2v2H6v-2zm4-4h2v2h-2V8zm0 4h2v2h-2v-2zm4-4h2v2h-2V8zm0 4h2v2h-2v-2zm4-4h2v2h-2V8zm0 4h2v2h-2v-2z"
     };
-    const recenterPosition = () => {
-        if (!navigator.geolocation) {
-            alert('Geolocation is not supported');
+    return paths[IconComponent.name] || paths.FaMarker;
+};
+
+// Add custom marker types and icons
+const CUSTOM_MARKER_TYPES = {
+    user: { icon: FaUser, color: '#2196f3', label: 'User Location' },
+    store: { icon: FaStore, color: '#4caf50', label: 'Store' },
+    cafe: { icon: FaCoffee, color: '#ff9800', label: 'Cafe' },
+    library: { icon: FaBook, color: '#9c27b0', label: 'Library' },
+    medical: { icon: FaFirstAid, color: '#f44336', label: 'Medical' },
+    accessibility: { icon: FaWheelchair, color: '#795548', label: 'Accessibility' },
+    elevator: { icon: FaArrowUp, color: '#607d8b', label: 'Elevator' },
+    entrance: { icon: FaDoorOpen, color: '#009688', label: 'Entrance' }
+};
+
+export default function MapBuilder() {
+    // Initialize state with null to prevent premature rendering
+    const [floors, setFloors] = useState(null);
+    const [selectedFloor, setSelectedFloor] = useState(null);
+    const [floorData, setFloorData] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const mapRef = useRef(null);
+    // const [selectedPathIndex, setSelectedPathIndex] = useState(null);
+    const [isViewer, setIsViewer] = useState(false);
+    const [highlightedObjectId, setHighlightedObjectId] = useState(null);
+    const [highlightedRouteIdx, setHighlightedRouteIdx] = useState(null);
+    const [showSaveToast, setShowSaveToast] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+    const fileInputRef = useRef(null);
+    const [sidebarTab, setSidebarTab] = useState('elements');
+    const [mapType, setMapType] = useState('normal');
+    const [drawingMode, setDrawingMode] = useState(null);
+    const drawControlRef = useRef(null);
+    const featureGroupRef = useRef(null);
+    const [currentMeasurement, setCurrentMeasurement] = useState(null);
+    // Add new states for path creation
+    const [pathFromMarker, setPathFromMarker] = useState(null);
+    const [pathToMarker, setPathToMarker] = useState(null);
+    const [pathCreationStep, setPathCreationStep] = useState(null); // 'from', 'to', 'draw'
+    // Add new state for marker details
+    const [selectedMarker, setSelectedMarker] = useState(null);
+    const [showMarkerDetails, setShowMarkerDetails] = useState(false);
+
+    // Define all callbacks at the top level
+    const handleSaveToLocalStorage = () => {
+        if (!floors || !floorData) {
+            console.warn('No data to save');
             return;
         }
 
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                const newPos = [position.coords.latitude, position.coords.longitude];
-                setUserPosition(newPos);
-
-                if (mapRef.current) {
-                    mapRef.current.setView(newPos, 19);
-                }
-
-                // Update dead reckoning initial position
-                if (deadReckoning) {
-                    deadReckoning.updatePosition(newPos[0], newPos[1]);
-                }
-
-                setIsInitialPositionSet(true);
-            },
-            (error) => {
-                console.error('Error getting position:', error);
-                alert('Error getting location. Please check permissions.');
-            },
-            { enableHighAccuracy: true }
-        );
-    };
-    const handleMotion = (event) => {
-        if (!deadReckoning || !isInitialPositionSet) return;
-
-        const now = Date.now();
-        const acceleration = {
-            x: event.accelerationIncludingGravity.x,
-            y: event.accelerationIncludingGravity.y,
-            z: event.accelerationIncludingGravity.z
-        };
-
-        // Apply low-pass filter to smooth acceleration data
-        filteredAccel.current = {
-            x: filteredAccel.current.x + STEP_CONFIG.lowPassAlpha * (acceleration.x - filteredAccel.current.x),
-            y: filteredAccel.current.y + STEP_CONFIG.lowPassAlpha * (acceleration.y - filteredAccel.current.y),
-            z: filteredAccel.current.z + STEP_CONFIG.lowPassAlpha * (acceleration.z - filteredAccel.current.z)
-        };
-
-        // Calculate acceleration magnitude
-        const accelMagnitude = Math.sqrt(
-            filteredAccel.current.x ** 2 +
-            filteredAccel.current.y ** 2 +
-            filteredAccel.current.z ** 2
-        );
-
-        const lastAccelMagnitude = Math.sqrt(
-            lastAcceleration.x ** 2 +
-            lastAcceleration.y ** 2 +
-            lastAcceleration.z ** 2
-        );
-
-        // Detect step using peak detection with cooldown
-        const magnitudeDelta = Math.abs(accelMagnitude - lastAccelMagnitude);
-        if (magnitudeDelta > STEP_CONFIG.threshold && 
-            (now - lastStepTime.current) > STEP_CONFIG.cooldown) {
-            setStepCount(prev => prev + 1);
-            lastStepTime.current = now;
-            console.log('Step detected:', magnitudeDelta); // Debug log
-        }
-
-        setLastAcceleration(filteredAccel.current);
-
-        const orientation = {
-            alpha: event.rotationRate?.alpha || 0,
-            beta: event.rotationRate?.beta || 0,
-            gamma: event.rotationRate?.gamma || 0
-        };
-
-        if (deadReckoning.processMotion(acceleration, orientation)) {
-            const newPosition = deadReckoning.getPosition();
-            setUserPosition(newPosition);
-            setUserPath(prev => [...prev, newPosition]);
-
-            // Auto-center map if tracking is active
-            if (mapRef.current && isTracking) {
-                mapRef.current.setView(newPosition);
-            }
-        }
-    };
-    const requestSensorPermissions = async () => {
         try {
-            // iOS Safari
-            if (typeof DeviceMotionEvent.requestPermission === 'function' && 
-                typeof DeviceOrientationEvent.requestPermission === 'function') {
-                const motionPermission = await DeviceMotionEvent.requestPermission();
-                const orientationPermission = await DeviceOrientationEvent.requestPermission();
-                
-                return (motionPermission === 'granted' && orientationPermission === 'granted');
-            } 
-            // Android Chrome and other browsers
-            else {
-                // Check if sensors are available
-                if (window.DeviceMotionEvent && window.DeviceOrientationEvent) {
-                    return true; // Permissions are implied on Android
+            const dataToSave = {
+                floors,
+                floorData,
+                selectedFloor
+            };
+            localStorage.setItem('rd_map_data', JSON.stringify(dataToSave));
+            setShowSaveToast(true);
+            setTimeout(() => setShowSaveToast(false), 2000);
+        } catch (error) {
+            console.error('Error saving to localStorage:', error);
+        }
+    };
+
+    const handleLoadFromLocalStorage = () => {
+        try {
+            const savedData = localStorage.getItem('rd_map_data');
+            if (savedData) {
+                const parsedData = JSON.parse(savedData);
+                if (parsedData.floors && parsedData.floorData) {
+                    setFloors(parsedData.floors);
+                    setFloorData(parsedData.floorData);
+                    setSelectedFloor(parsedData.selectedFloor || parsedData.floors[0]?.id);
+                    setShowSaveToast(true);
+                    setTimeout(() => setShowSaveToast(false), 2000);
                 }
-                return false;
             }
         } catch (error) {
-            console.error('Error requesting sensor permissions:', error);
-            // If error occurs, still try to use sensors if available
-            return !!(window.DeviceMotionEvent && window.DeviceOrientationEvent);
+            console.error('Error loading from localStorage:', error);
         }
     };
 
-    const startTracking = async () => {
-        if (!isInitialPositionSet) {
-            alert('Please use Recenter GPS first to get initial position');
-            return;
-        }
-
-        // Check if running on HTTPS
-        if (window.location.protocol !== 'https:') {
-            alert('Sensors require HTTPS. Please use a secure connection.');
-            return;
-        }
-
-        // Try to get permissions
-        const hasPermissions = await requestSensorPermissions();
-        if (!hasPermissions) {
-            alert('Motion sensors not available or permission denied');
-            return;
-        }
-
-        setStepCount(0);
-        lastStepTime.current = 0;
-        filteredAccel.current = { x: 0, y: 0, z: 0 };
-
-        window.addEventListener('devicemotion', handleMotion);
-        window.addEventListener('deviceorientation', handleOrientation);
-        setIsTracking(true);
-    };
-
-    const handleOrientation = (event) => {
-        if (!deadReckoning || !hasInitialPosition.current) return;
-
-        // Calibrate using true heading if available
-        if (event.webkitCompassHeading) {
-            deadReckoning.calibrate(event.webkitCompassHeading);
-        }
-    };
-
-    const stopTracking = () => {
-        if (isTracking) {
-            window.removeEventListener('devicemotion', handleMotion);
-            window.removeEventListener('deviceorientation', handleOrientation);
-            setIsTracking(false);
-            hasInitialPosition.current = false;
-        }
-    };
-
-    useEffect(() => {
-        return () => {
-            window.removeEventListener('devicemotion', handleMotion);
-            window.removeEventListener('deviceorientation', handleOrientation);
+    const handleExportJSON = useCallback(() => {
+        const data = {
+            floors,
+            floorData
         };
-    }, [deadReckoning]);
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'map_data.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    }, [floors, floorData]);
 
-    useEffect(() => {
-        return () => {
-            if (watchId) {
-                navigator.geolocation.clearWatch(watchId);
+    const handleImportJSON = useCallback((e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const data = JSON.parse(event.target.result);
+                if (data.floors && data.floorData) {
+                    if (window.confirm('Importing will overwrite current map data. Continue?')) {
+                        setFloors(data.floors);
+                        setFloorData(data.floorData);
+                        setSelectedFloor(data.floors[0]?.id || 'floor_1');
+                        setShowSaveToast(true);
+                        setTimeout(() => setShowSaveToast(false), 2000);
+                    }
+                } else {
+                    alert('Invalid map data format.');
+                }
+            } catch (err) {
+                alert('Failed to import: ' + err.message);
             }
         };
-    }, [watchId]);
+        reader.readAsText(file);
+    }, []);
 
-    // For path mode: select from/to nodes
-    const handleMarkerClick = id => {
-        if (!isAddingPath) return;
-        if (!fromNode) setFromNode(id);
-        else if (!toNode && id !== fromNode) setToNode(id);
-    };
+    // Map initialization effect
+    useEffect(() => {
+        if (mapRef.current) {
+            const map = mapRef.current;
+            if (!map._loaded) {
+                map.invalidateSize();
+            }
+        }
+    }, [selectedFloor, floorData]);
 
-    // When a new path is drawn
-    const handleRouteCreated = e => {
-        if (e.layerType !== 'polyline' || !fromNode || !toNode) return;
+    // Auto-save effect
+    useEffect(() => {
+        if (!isLoading && floors && floorData) {
+            const saveData = () => {
+                try {
+                    const dataToSave = {
+                        floors,
+                        floorData,
+                        selectedFloor
+                    };
+                    localStorage.setItem('rd_map_data', JSON.stringify(dataToSave));
+                } catch (err) {
+                    console.error('Error auto-saving:', err);
+                }
+            };
 
-        const fromObject = objects.find(o => o.id === fromNode);
-        const toObject = objects.find(o => o.id === toNode);
+            saveData();
+        }
+    }, [floors, floorData, selectedFloor, isLoading]);
 
-        const latlngs = e.layer.getLatLngs();
-        let path = latlngs.map(p => ({ x: p.lng, y: p.lat }));
-
-        // Correctly map start point
-        path[0] = {
-            x: fromObject.latlng[1], // longitude is second element
-            y: fromObject.latlng[0]  // latitude is first element
-        };
-
-        // Correctly map end point
-        path[path.length - 1] = {
-            x: toObject.latlng[1],   // longitude is second element
-            y: toObject.latlng[0]    // latitude is first element
-        };
-
-        setRoutes(prev => [...prev, {
-            from: fromNode,
-            to: toNode,
-            type: 'corridor',
-            weight: path.length,
-            path
-        }]);
-
-        setIsAddingPath(false);
-        setFromNode('');
-        setToNode('');
-    };
-
-    // When a new boundary is drawn
-    const handleBoundaryCreated = e => {
-        if (e.layerType !== 'polygon') return;
-        const geojson = e.layer.toGeoJSON();
-        setBoundaries(prev => [...prev, geojson]);
-        setIsAddingBoundary(false);
-    };
-
-    return (
-        <div>
-            {/* Controls panel */}
-            <div style={{ position: 'absolute', bottom: 10, left: 10, zIndex: 1000, background: '#fff', color: '#000', padding: 8, borderRadius: 8 }}>
-                {['vendingMachine', 'stairs', 'bench'].map(t => (
-                    <button key={t} onClick={() => { setSelectedType(t); setIsAddingPath(false); setIsAddingBoundary(false); }} style={{ margin: '0 4px', padding: 6 }}>
-                        {t.slice(0, 2).toUpperCase()}
-                    </button>
-                ))}
-                <button onClick={() => { setIsAddingPath(true); setSelectedType(null); setIsAddingBoundary(false); setFromNode(''); setToNode(''); }} style={{ margin: '0 4px', padding: 6 }}>
-                    Add Path
-                </button>
-                <button onClick={() => { setIsAddingBoundary(true); setSelectedType(null); setIsAddingPath(false); }} style={{ margin: '0 4px', padding: 6 }}>
-                    Add Boundary
-                </button>
-                <button onClick={() => setMapType(prev => prev === 'normal' ? 'satellite' : 'normal')} style={{ margin: '0 4px', padding: 6 }}>
-                    {mapType === 'normal' ? 'Satellite' : 'Normal'}
-                </button>
-                <button
-                    onClick={recenterPosition}
-                    style={{
-                        margin: '0 4px',
-                        padding: 6,
-                        backgroundColor: '#4285F4',
-                        color: 'white'
-                    }}
-                >
-                    Recenter GPS
-                </button>
-                <button
-                    onClick={isTracking ? stopTracking : startTracking}
-                    style={{
-                        margin: '0 4px',
-                        padding: 6,
-                        backgroundColor: isTracking ? '#ff4444' : '#44ff44'
-                    }}
-                >
-                    {isTracking ? 'Stop Tracking' : 'Start DR Tracking'}
-                </button>
-                {isTracking && (
-                    <span style={{
-                        marginLeft: 8,
-                        padding: '4px 8px',
-                        backgroundColor: '#f0f0f0',
-                        borderRadius: 4
-                    }}>
-                        Steps: {stepCount}
-                    </span>
-                )}
-                {isAddingPath && (fromNode || toNode) && <span style={{ marginLeft: 8 }}>{fromNode && "From : " + fromNode} - {toNode && "To : " + toNode}</span>}
-                {isAddingPath && <span style={{ marginLeft: 8 }}>{!fromNode ? 'Select From' : !toNode ? 'Select To' : 'Draw Line'}</span>}
-                {isAddingBoundary && <span style={{ marginLeft: 8 }}>Draw Boundary</span>}
-            </div>
-
-            <MapContainer
-                center={userPosition || [26.4494, 80.1935]}
-                zoom={18}
-                maxZoom={30}
-                style={{ height: '100vh', width: '100vw' }}
-                ref={mapRef}
-            >
-                <TileLayer
-                    url={mapType === 'normal'
-                        ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
-                        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    // Initial data loading effect
+    useEffect(() => {
+        const loadData = () => {
+            try {
+                const savedData = localStorage.getItem('rd_map_data');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    if (parsedData.floors && parsedData.floorData) {
+                        setFloors(parsedData.floors);
+                        setFloorData(parsedData.floorData);
+                        setSelectedFloor(parsedData.selectedFloor || parsedData.floors[0]?.id);
+                    } else {
+                        initializeDefaultData();
                     }
-                    maxZoom={20}
-                    maxNativeZoom={19}
-                    attribution={mapType === 'normal' ? '&copy; OSM contributors' : '&copy; Esri'}
-                />
+                } else {
+                    initializeDefaultData();
+                }
+            } catch (err) {
+                console.error('Error loading data:', err);
+                initializeDefaultData();
+            } finally {
+                setIsLoading(false);
+            }
+        };
 
-                <ZoomHandler setZoom={setZoomLevel} />
+        const initializeDefaultData = () => {
+            const defaultFloors = [{ id: 'floor_1', name: 'Floor 1' }];
+            const defaultFloorData = {
+                'floor_1': {
+                    objects: [],
+                    routes: [],
+                    boundaries: [],
+                    innerBoundaries: []
+                }
+            };
+            setFloors(defaultFloors);
+            setFloorData(defaultFloorData);
+            setSelectedFloor('floor_1');
+        };
 
-                {/* Drawing modes */}
-                {isAddingBoundary && (
-                    <FeatureGroup>
-                        <EditControl
-                            position="topright"
-                            draw={{ rectangle: false, polygon: true, polyline: false, circle: false, marker: false }}
-                            onCreated={handleBoundaryCreated}
-                        />
-                    </FeatureGroup>
+        loadData();
+    }, []); // Only run on component mount
+
+    // Update handleSetDrawingMode
+    const handleSetDrawingMode = (mode) => {
+        setDrawingMode(mode);
+
+        // Reset path creation states when starting new path
+        if (mode === 'polyline') {
+            setPathFromMarker(null);
+            setPathToMarker(null);
+            setPathCreationStep('from');
+            setCurrentMeasurement(null);
+        } else {
+            setPathCreationStep(null);
+        }
+
+        // If switching to a new drawing mode, enable the appropriate draw control
+        if (drawControlRef.current) {
+            const drawControl = drawControlRef.current.leafletElement;
+            if (drawControl) {
+                // Disable all drawing modes first
+                drawControl._toolbars.draw._modes.marker.handler.disable();
+                drawControl._toolbars.draw._modes.polygon.handler.disable();
+                drawControl._toolbars.draw._modes.polyline.handler.disable();
+
+                // Enable the selected mode
+                if (mode === 'marker') {
+                    drawControl._toolbars.draw._modes.marker.handler.enable();
+                } else if (mode === 'polygon' || mode === 'innerPolygon') {
+                    drawControl._toolbars.draw._modes.polygon.handler.enable();
+                } else if (mode === 'polyline' && pathCreationStep === 'draw') {
+                    drawControl._toolbars.draw._modes.polyline.handler.enable();
+                }
+            }
+        }
+    };
+
+    // Add click handler for markers during path creation
+    const handleMarkerClick = (marker) => {
+        if (drawingMode === 'polyline') {
+            if (pathCreationStep === 'from') {
+                setPathFromMarker(marker);
+                setPathCreationStep('to');
+                setCurrentMeasurement(`Selected start point: ${marker.name || marker.id}`);
+            } else if (pathCreationStep === 'to') {
+                setPathToMarker(marker);
+                setPathCreationStep('draw');
+                setCurrentMeasurement(`Selected end point: ${marker.name || marker.id}. Now draw the path.`);
+                // Enable polyline drawing
+                if (drawControlRef.current) {
+                    const drawControl = drawControlRef.current.leafletElement;
+                    if (drawControl) {
+                        drawControl._toolbars.draw._modes.polyline.handler.enable();
+                    }
+                }
+            }
+        } else {
+            setSelectedMarker(marker);
+            setShowMarkerDetails(true);
+        }
+    };
+
+    // Add helper function to calculate distance
+    const calculateDistance = (points) => {
+        let totalDistance = 0;
+        for (let i = 1; i < points.length; i++) {
+            const prev = points[i - 1];
+            const curr = points[i];
+            const dx = curr.lng - prev.lng;
+            const dy = curr.lat - prev.lat;
+            totalDistance += Math.sqrt(dx * dx + dy * dy);
+        }
+        // Convert to meters (approximate)
+        return (totalDistance * 111000).toFixed(1);
+    };
+
+    // Add helper function to calculate area
+    const calculateArea = (points) => {
+        let area = 0;
+        for (let i = 0; i < points.length; i++) {
+            const j = (i + 1) % points.length;
+            area += points[i].lng * points[j].lat;
+            area -= points[j].lng * points[i].lat;
+        }
+        // Convert to square meters (approximate)
+        return (Math.abs(area / 2) * 111000 * 111000).toFixed(1);
+    };
+
+    // Update handleCreated for polyline
+    const handleCreated = (e) => {
+        const layer = e.layer;
+        const type = e.layerType;
+
+        // Reset measurement
+        setCurrentMeasurement(null);
+
+        if (type === 'marker') {
+            try {
+                const latLng = layer.getLatLng();
+                if (!latLng) {
+                    console.error('Invalid marker position');
+                    return;
+                }
+
+                console.log('Creating new marker at:', latLng);
+                const newMarker = {
+                    id: `marker_${Date.now()}`,
+                    type: 'vendingMachine',
+                    name: `Marker ${Date.now()}`,
+                    latlng: [latLng.lat, latLng.lng]
+                };
+
+                // Set marker options
+                layer.options.id = newMarker.id;
+                layer.options.type = newMarker.type;
+                layer.options.name = newMarker.name;
+
+                setFloorData(prev => {
+                    if (!prev || !selectedFloor) {
+                        console.warn('Invalid floor data or selected floor:', { prev, selectedFloor });
+                        return prev;
+                    }
+                    console.log('Adding marker to floor data:', { newMarker, selectedFloor });
+                    const floor = prev[selectedFloor] || { objects: [], routes: [], boundaries: [], innerBoundaries: [] };
+                    const updatedFloor = {
+                        ...floor,
+                        objects: [...(floor.objects || []), newMarker]
+                    };
+                    console.log('Updated floor data:', updatedFloor);
+                    return {
+                        ...prev,
+                        [selectedFloor]: updatedFloor
+                    };
+                });
+
+                // Remove the temporary marker layer
+                if (layer && layer.remove) {
+                    layer.remove();
+                }
+            } catch (err) {
+                console.error('Error creating marker:', err);
+            }
+        } else if (type === 'polygon') {
+            const points = layer.getLatLngs()[0];
+            const area = calculateArea(points);
+            setCurrentMeasurement(`Area: ${area} m²`);
+
+            // Set the layer type for proper handling in edit/delete operations
+            const polygonId = `polygon_${Date.now()}`;
+            layer.options.id = polygonId;
+            layer.options.type = drawingMode === 'innerPolygon' ? 'innerBoundary' : 'boundary';
+
+            const newPolygon = {
+                id: polygonId,
+                type: drawingMode === 'innerPolygon' ? 'innerBoundary' : 'boundary',
+                geometry: layer.toGeoJSON().geometry,
+                properties: drawingMode === 'innerPolygon' ? {
+                    name: `Inner Boundary ${Date.now()}`,
+                    category: 'facility',
+                    description: ''
+                } : {}
+            };
+
+            setFloorData(prev => {
+                const floor = prev[selectedFloor] || { objects: [], routes: [], boundaries: [], innerBoundaries: [] };
+                if (drawingMode === 'innerPolygon') {
+                    return {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            innerBoundaries: [...(floor.innerBoundaries || []), newPolygon]
+                        }
+                    };
+                } else {
+                    return {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            boundaries: [...(floor.boundaries || []), newPolygon]
+                        }
+                    };
+                }
+            });
+
+            // Remove the temporary polygon layer
+            if (layer && layer.remove) {
+                layer.remove();
+            }
+        } else if (type === 'polyline') {
+            const points = layer.getLatLngs();
+            const distance = calculateDistance(points);
+            setCurrentMeasurement(`Length: ${distance} m`);
+
+            // Replace first and last points with exact marker positions
+            const fromMarker = floorData[selectedFloor].objects.find(obj => obj.id === pathFromMarker?.id);
+            const toMarker = floorData[selectedFloor].objects.find(obj => obj.id === pathToMarker?.id);
+
+            if (fromMarker && toMarker) {
+                // Create new path array with exact marker positions
+                const adjustedPath = [
+                    { x: fromMarker.latlng[1], y: fromMarker.latlng[0] }, // from marker position
+                    ...points.slice(1, -1).map(latLng => ({ x: latLng.lng, y: latLng.lat })), // middle points
+                    { x: toMarker.latlng[1], y: toMarker.latlng[0] } // to marker position
+                ];
+
+                // Create the new path with marker references
+                const newPath = {
+                    id: `path_${Date.now()}`,
+                    type: 'corridor',
+                    from: pathFromMarker?.id,
+                    to: pathToMarker?.id,
+                    path: adjustedPath
+                };
+
+                setFloorData(prev => {
+                    const floor = prev[selectedFloor];
+                    return {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            routes: [...(floor.routes || []), newPath]
+                        }
+                    };
+                });
+            }
+
+            // Reset path creation states
+            setPathFromMarker(null);
+            setPathToMarker(null);
+            setPathCreationStep(null);
+
+            // Remove the temporary path layer
+            if (layer && layer.remove) {
+                layer.remove();
+            }
+        }
+
+        setDrawingMode(null);
+    };
+
+    // Add drawing event handlers
+    const handleDrawStart = (e) => {
+        setCurrentMeasurement(null);
+    };
+
+    const handleDrawVertex = (e) => {
+        const layer = e.layer;
+        const type = e.layerType;
+
+        if (type === 'polygon') {
+            const points = layer.getLatLngs()[0];
+            if (points.length > 2) {
+                const area = calculateArea(points);
+                setCurrentMeasurement(`Area: ${area} m²`);
+            }
+        } else if (type === 'polyline') {
+            const points = layer.getLatLngs();
+            if (points.length > 1) {
+                const distance = calculateDistance(points);
+                setCurrentMeasurement(`Length: ${distance} m`);
+            }
+        }
+    };
+
+    // Update the handleEdited function
+    const handleEdited = (e) => {
+        const layers = e.layers;
+        let hasChanges = false;
+
+        layers.eachLayer(layer => {
+            if (layer instanceof L.Marker) {
+                const newLatLng = layer.getLatLng();
+                setFloorData(prev => {
+                    const floor = prev[selectedFloor];
+                    const updatedObjects = floor.objects.map(obj => {
+                        if (obj.id === layer.options.options.id) {
+                            hasChanges = true;
+                            return {
+                                ...obj,
+                                latlng: [newLatLng.lat, newLatLng.lng]
+                            };
+                        }
+                        return obj;
+                    });
+
+                    const newFloorData = {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            objects: updatedObjects
+                        }
+                    };
+
+                    // Save to localStorage immediately after state update
+                    try {
+                        localStorage.setItem('rd_map_data', JSON.stringify({
+                            floors,
+                            floorData: newFloorData,
+                            selectedFloor
+                        }));
+                    } catch (error) {
+                        console.error('Error saving to localStorage:', error);
+                    }
+
+                    return newFloorData;
+                });
+            } else if (layer instanceof L.Polygon) {
+                const newGeometry = layer.toGeoJSON().geometry;
+                console.log('Editing polygon:', layer.options.options.id, 'Type:', layer.options.type, 'Options:', layer.options);
+
+                setFloorData(prev => {
+                    const floor = prev[selectedFloor];
+                    // Check if it's an inner boundary by looking at the options
+                    const isInnerBoundary = layer.options.options?.type === 'innerBoundary';
+                    console.log('Is inner boundary:', isInnerBoundary);
+
+                    const boundaries = isInnerBoundary ? floor.innerBoundaries : floor.boundaries;
+                    const updatedBoundaries = boundaries.map(boundary => {
+                        if (boundary.id === layer.options.options.id) {
+                            hasChanges = true;
+                            return {
+                                ...boundary,
+                                geometry: {
+                                    type: newGeometry.type,
+                                    coordinates: newGeometry.coordinates
+                                }
+                            };
+                        }
+                        return boundary;
+                    });
+
+                    const newFloorData = {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            [isInnerBoundary ? 'innerBoundaries' : 'boundaries']: updatedBoundaries
+                        }
+                    };
+
+                    // Save to localStorage immediately after state update
+                    try {
+                        localStorage.setItem('rd_map_data', JSON.stringify({
+                            floors,
+                            floorData: newFloorData,
+                            selectedFloor
+                        }));
+                    } catch (error) {
+                        console.error('Error saving to localStorage:', error);
+                    }
+
+                    return newFloorData;
+                });
+            } else if (layer instanceof L.Polyline) {
+                const newPath = layer.getLatLngs().map(latLng => ({ x: latLng.lng, y: latLng.lat }));
+                setFloorData(prev => {
+                    const floor = prev[selectedFloor];
+                    const updatedRoutes = floor.routes.map(route => {
+                        if (route.id === layer.options.options.id) {
+                            hasChanges = true;
+                            return {
+                                ...route,
+                                path: newPath
+                            };
+                        }
+                        return route;
+                    });
+
+                    const newFloorData = {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            routes: updatedRoutes
+                        }
+                    };
+
+                    // Save to localStorage immediately after state update
+                    try {
+                        localStorage.setItem('rd_map_data', JSON.stringify({
+                            floors,
+                            floorData: newFloorData,
+                            selectedFloor
+                        }));
+                    } catch (error) {
+                        console.error('Error saving to localStorage:', error);
+                    }
+
+                    return newFloorData;
+                });
+            }
+        });
+
+        if (hasChanges) {
+            setShowSaveToast(true);
+            setTimeout(() => setShowSaveToast(false), 2000);
+        }
+    };
+
+    // Update the handleDeleted function
+    const handleDeleted = (e) => {
+        const layers = e.layers;
+        let hasChanges = false;
+
+        layers.eachLayer(layer => {
+            console.log('Layer:', layer);
+            console.log('Layer options:', layer.options);
+
+            if (layer instanceof L.Marker) {
+                const markerId = layer.options.options.id;
+                console.log('Deleting marker with ID:', markerId);
+
+                setFloorData(prev => {
+                    const floor = prev[selectedFloor];
+                    const updatedObjects = floor.objects.filter(obj => obj.id !== markerId);
+                    const updatedRoutes = floor.routes.filter(route =>
+                        route.from !== markerId && route.to !== markerId
+                    );
+
+                    const updatedFloor = {
+                        ...floor,
+                        objects: updatedObjects,
+                        routes: updatedRoutes
+                    };
+
+                    const newData = {
+                        ...prev,
+                        [selectedFloor]: updatedFloor
+                    };
+
+                    // Save to localStorage immediately
+                    try {
+                        localStorage.setItem('rd_map_data', JSON.stringify({
+                            floors,
+                            floorData: newData,
+                            selectedFloor
+                        }));
+                    } catch (error) {
+                        console.error('Error saving to localStorage:', error);
+                    }
+
+                    hasChanges = true;
+                    return newData;
+                });
+            } else if (layer instanceof L.Polygon) {
+                const polygonId = layer.options.options.id;
+                console.log('Deleting polygon with ID:', polygonId);
+
+                setFloorData(prev => {
+                    const floor = prev[selectedFloor];
+                    const isInnerBoundary = layer.options.options.type === 'innerBoundary';
+                    const boundaries = isInnerBoundary ? floor.innerBoundaries : floor.boundaries;
+                    const updatedBoundaries = boundaries.filter(boundary => boundary.id !== polygonId);
+                    console.log(isInnerBoundary, boundaries, updatedBoundaries);
+                    const newData = {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            [isInnerBoundary ? 'innerBoundaries' : 'boundaries']: updatedBoundaries
+                        }
+                    };
+
+                    // Save to localStorage immediately
+                    try {
+                        localStorage.setItem('rd_map_data', JSON.stringify({
+                            floors,
+                            floorData: newData,
+                            selectedFloor
+                        }));
+                    } catch (error) {
+                        console.error('Error saving to localStorage:', error);
+                    }
+
+                    hasChanges = true;
+                    return newData;
+                });
+            } else if (layer instanceof L.Polyline) {
+                const pathId = layer.options.options.id;
+                console.log('Deleting path with ID:', pathId);
+
+                setFloorData(prev => {
+                    const floor = prev[selectedFloor];
+                    const updatedRoutes = floor.routes.filter(route => route.id !== pathId);
+
+                    const newData = {
+                        ...prev,
+                        [selectedFloor]: {
+                            ...floor,
+                            routes: updatedRoutes
+                        }
+                    };
+
+                    // Save to localStorage immediately
+                    try {
+                        localStorage.setItem('rd_map_data', JSON.stringify({
+                            floors,
+                            floorData: newData,
+                            selectedFloor
+                        }));
+                    } catch (error) {
+                        console.error('Error saving to localStorage:', error);
+                    }
+
+                    hasChanges = true;
+                    return newData;
+                });
+            }
+        });
+
+        if (hasChanges) {
+            setShowSaveToast(true);
+            setTimeout(() => setShowSaveToast(false), 2000);
+        }
+    };
+
+    // Restore necessary handlers
+    const handleDeleteMarker = (id) => {
+        setFloorData(prev => {
+            const floor = prev[selectedFloor];
+            return {
+                ...prev,
+                [selectedFloor]: {
+                    ...floor,
+                    objects: floor.objects.filter(obj => obj.id !== id),
+                    routes: floor.routes.filter(route => route.from !== id && route.to !== id)
+                }
+            };
+        });
+    };
+
+    const handleDeletePath = (pathIdx) => {
+        setFloorData(prev => {
+            const floor = prev[selectedFloor];
+            const updatedRoutes = floor.routes.filter((_, i) => i !== pathIdx);
+            return {
+                ...prev,
+                [selectedFloor]: {
+                    ...floor,
+                    routes: updatedRoutes
+                }
+            };
+        });
+    };
+
+    // Add marker types for selection
+    const MARKER_TYPES = {
+        vendingMachine: { icon: FaUtensils, color: '#e53935', label: 'Vending Machine' },
+        stairs: { icon: FaStairs, color: '#8e24aa', label: 'Stairs' },
+        bench: { icon: SiBlockbench, color: '#43a047', label: 'Bench' },
+        elevator: { icon: FaArrowUp, color: '#1e88e5', label: 'Elevator' },
+        entrance: { icon: FaDoorOpen, color: '#fb8c00', label: 'Entrance' },
+        info: { icon: FaInfoCircle, color: '#00acc1', label: 'Information' }
+    };
+
+    // Add handler for marker property updates
+    const handleMarkerUpdate = (updates) => {
+        setFloorData(prev => {
+            const floor = prev[selectedFloor];
+            const updatedObjects = floor.objects.map(obj => {
+                if (obj.id === selectedMarker.id) {
+                    return { ...obj, ...updates };
+                }
+                return obj;
+            });
+
+            const newFloorData = {
+                ...prev,
+                [selectedFloor]: {
+                    ...floor,
+                    objects: updatedObjects
+                }
+            };
+
+            // Update the selected marker state with the new values
+            setSelectedMarker(prev => ({
+                ...prev,
+                ...updates
+            }));
+
+            // Save to localStorage immediately
+            try {
+                localStorage.setItem('rd_map_data', JSON.stringify({
+                    floors,
+                    floorData: newFloorData,
+                    selectedFloor
+                }));
+            } catch (error) {
+                console.error('Error saving to localStorage:', error);
+            }
+
+            return newFloorData;
+        });
+    };
+
+    // Early return for loading state
+    if (isLoading) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f7f7fa' }}>
+                <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>Loading map data...</div>
+            </div>
+        );
+    }
+
+    // Early return for viewer mode
+    if (isViewer) {
+        console.log('Entering viewer mode with data:', {
+            floorData,
+            selectedFloor,
+            floors,
+            hasFloorData: !!floorData,
+            hasSelectedFloor: !!selectedFloor,
+            floorDataKeys: floorData ? Object.keys(floorData) : [],
+            selectedFloorData: floorData && selectedFloor ? floorData[selectedFloor] : null
+        });
+        return (
+            <MapViewer3D
+                floorData={floorData}
+                selectedFloor={selectedFloor}
+            />
+        );
+    }
+
+    // Early return for no floor data
+    if (!selectedFloor || !floorData || !floorData[selectedFloor]) {
+        console.log('No floor data available:', {
+            selectedFloor,
+            hasFloorData: !!floorData,
+            floorDataKeys: floorData ? Object.keys(floorData) : []
+        });
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f7f7fa' }}>
+                <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>Initializing map...</div>
+                <button
+                    onClick={() => {
+                        const newId = 'floor_1';
+                        console.log('Initializing new map with floor:', newId);
+                        setFloors([{ id: newId, name: 'Floor 1' }]);
+                        setFloorData({
+                            [newId]: {
+                                objects: [],
+                                routes: [],
+                                boundaries: [],
+                                innerBoundaries: []
+                            }
+                        });
+                        setSelectedFloor(newId);
+                    }}
+                    style={{ background: '#4285F4', color: 'white', border: 'none', borderRadius: 4, padding: '12px 24px', fontWeight: 500, fontSize: 16 }}
+                >
+                    Initialize New Map
+                </button>
+            </div>
+        );
+    }
+
+    // Main render
+    return (
+        <div style={{ position: 'relative', color: 'black', height: '100vh', width: '100vw', background: '#f7f7fa' }}>
+            {/* Sidebar (fixed left, overlay) */}
+            <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                height: '100vh',
+                width: sidebarCollapsed ? 48 : 260,
+                background: '#fff',
+                borderRight: '1px solid #e0e0e0',
+                boxShadow: '2px 0 16px rgba(0,0,0,0.08)',
+                zIndex: 2001,
+                display: 'flex',
+                flexDirection: 'column',
+                transition: 'width 0.2s',
+                overflow: 'hidden',
+            }}>
+                {/* Sidebar header and tabs */}
+                <div style={{ display: 'flex', alignItems: 'center', padding: sidebarCollapsed ? 8 : 14, borderBottom: '1px solid #e0e0e0', background: '#f5f5f7', fontWeight: 600, fontSize: 16, justifyContent: 'space-between', position: 'relative' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <FaMap style={{ color: '#4285F4', fontSize: 20 }} />
+                        {!sidebarCollapsed && <span>Map Builder</span>}
+                    </span>
+                    {/* Tabs */}
+                    {!sidebarCollapsed && (
+                        <div style={{ display: 'flex', gap: 4, marginLeft: 12 }}>
+                            <button
+                                onClick={() => setSidebarTab('elements')}
+                                style={{
+                                    background: sidebarTab === 'elements' ? '#e3f2fd' : 'transparent',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    padding: '4px 10px',
+                                    fontWeight: 500,
+                                    color: sidebarTab === 'elements' ? '#1976d2' : '#888',
+                                    cursor: 'pointer',
+                                    fontSize: 13
+                                }}
+                            >Elements</button>
+                            <button
+                                onClick={() => setSidebarTab('functions')}
+                                style={{
+                                    background: sidebarTab === 'functions' ? '#e3f2fd' : 'transparent',
+                                    border: 'none',
+                                    borderRadius: 4,
+                                    padding: '4px 10px',
+                                    fontWeight: 500,
+                                    color: sidebarTab === 'functions' ? '#1976d2' : '#888',
+                                    cursor: 'pointer',
+                                    fontSize: 13
+                                }}
+                            >Functions</button>
+                        </div>
+                    )}
+                    {/* Always show open/close button, fixed to left edge */}
+                    <button
+                        onClick={() => setSidebarCollapsed(v => !v)}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            cursor: 'pointer',
+                            color: '#888',
+                            fontSize: 20,
+                            position: 'absolute',
+                            left: sidebarCollapsed ? 8 : 0,
+                            top: '50%',
+                            transform: 'translateY(-50%)',
+                            zIndex: 2002,
+                        }}
+                        title={sidebarCollapsed ? 'Expand' : 'Collapse'}
+                    >
+                        {sidebarCollapsed ? <FaChevronRight /> : <FaChevronLeft />}
+                    </button>
+                </div>
+                <div style={{ padding: sidebarCollapsed ? 0 : 8, flex: 1, overflowY: 'auto', minWidth: 0, display: sidebarCollapsed ? 'none' : 'block' }}>
+                    {!sidebarCollapsed && sidebarTab === 'elements' && selectedFloor && floorData[selectedFloor] && <>
+                        <div style={{ marginBottom: 10, borderBottom: '1px solid #eee', paddingBottom: 4 }}>
+                            <div style={{ fontWeight: 500, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><FaMap style={{ color: '#90caf9' }} /> Objects</div>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
+                                {floorData[selectedFloor].objects.map(obj => (
+                                    <li key={obj.id} style={{
+                                        background: highlightedObjectId === obj.id ? '#e3f2fd' : 'transparent',
+                                        borderRadius: 3,
+                                        padding: '2px 4px',
+                                        marginBottom: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        transition: 'background 0.15s',
+                                        fontSize: 12
+                                    }}
+                                        onMouseEnter={() => setHighlightedObjectId(obj.id)}
+                                        onMouseLeave={() => setHighlightedObjectId(null)}
+                                    >
+                                        <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <div style={{
+                                                background: MARKER_TYPES[obj.type]?.color || '#2196f3',
+                                                color: 'white',
+                                                borderRadius: '50%',
+                                                width: '24px',
+                                                height: '24px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                border: '2px solid white',
+                                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                                            }}>
+                                                <svg viewBox="0 0 24 24" width="16" height="16" fill="white">
+                                                    <path d={getIconPath(MARKER_TYPES[obj.type]?.icon || FaMarker)} />
+                                                </svg>
+                                            </div>
+                                            {obj.name || obj.id} <span style={{ color: '#888', fontSize: 12 }}>({MARKER_TYPES[obj.type]?.label || obj.type})</span>
+                                        </span>
+                                        <button onClick={() => handleDeleteMarker(obj.id)} style={{ background: 'none', border: 'none', color: '#d32f2f', cursor: 'pointer', fontSize: 16, marginLeft: 8 }} title="Delete"><span role="img" aria-label="delete">🗑️</span></button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div style={{ marginBottom: 10, borderBottom: '1px solid #eee', paddingBottom: 4 }}>
+                            <div style={{ fontWeight: 500, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><FaRoute style={{ color: '#ffb300' }} /> Routes</div>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
+                                {floorData[selectedFloor].routes.map((route, i) => (
+                                    <li key={i} style={{
+                                        background: highlightedRouteIdx === i ? '#e3f2fd' : 'transparent',
+                                        borderRadius: 3,
+                                        padding: '2px 4px',
+                                        marginBottom: 1,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        cursor: 'pointer',
+                                        transition: 'background 0.15s',
+                                        fontSize: 12
+                                    }}
+                                        onMouseEnter={() => setHighlightedRouteIdx(i)}
+                                        onMouseLeave={() => setHighlightedRouteIdx(null)}
+                                    >
+                                        <span style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                                            <FaRoute style={{ color: '#ffb300' }} />
+                                            {route.from} → {route.to} <span style={{ color: '#888', fontSize: 12 }}>({route.type})</span>
+                                        </span>
+                                        <button onClick={() => handleDeletePath(i)} style={{ background: 'none', border: 'none', color: '#d32f2f', cursor: 'pointer', fontSize: 16, marginLeft: 8 }} title="Delete"><span role="img" aria-label="delete">🗑️</span></button>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div style={{ marginBottom: 10 }}>
+                            <div style={{ fontWeight: 500, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}><FaDrawPolygon style={{ color: '#7e57c2' }} /> Boundaries</div>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
+                                {floorData[selectedFloor].boundaries.map((b, i) => (
+                                    <li key={i} style={{
+                                        background: 'transparent',
+                                        borderRadius: 3,
+                                        padding: '2px 4px',
+                                        marginBottom: 1,
+                                        color: '#888',
+                                        fontSize: 11
+                                    }}>
+                                        <FaDrawPolygon style={{ color: '#7e57c2', marginRight: 4 }} /> Polygon #{i + 1}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                        <div style={{ marginBottom: 10, borderBottom: '1px solid #eee', paddingBottom: 4 }}>
+                            <div style={{ fontWeight: 500, marginBottom: 2, display: 'flex', alignItems: 'center', gap: 6, color: '#ff7043', fontSize: 13 }}><FaDrawPolygon style={{ color: '#ff7043' }} /> Shops / POIs</div>
+                            <ul style={{ listStyle: 'none', padding: 0, margin: 0, fontSize: 12 }}>
+                                {(floorData[selectedFloor].shops || []).map((shop, i) => (
+                                    <li key={i} style={{
+                                        background: 'transparent',
+                                        borderRadius: 3,
+                                        padding: '2px 4px',
+                                        marginBottom: 1,
+                                        color: '#ff7043',
+                                        fontSize: 12
+                                    }}>
+                                        <FaDrawPolygon style={{ color: '#ff7043', marginRight: 4 }} /> {shop.type.charAt(0).toUpperCase() + shop.type.slice(1)} #{i + 1}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </>}
+                </div>
+                {/* Functions tab content */}
+                {!sidebarCollapsed && sidebarTab === 'functions' && (
+                    <div style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <button onClick={handleSaveToLocalStorage} style={{ background: '#4285F4', color: 'white', border: 'none', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14 }} title="Save to LocalStorage">Save</button>
+                        <button onClick={handleLoadFromLocalStorage} style={{ background: '#1976d2', color: 'white', border: 'none', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14 }} title="Load from LocalStorage">Load</button>
+                        <button onClick={() => setIsViewer(true)} style={{ background: '#222', color: 'white', border: 'none', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14 }} title="View Map">View Map</button>
+                        <button onClick={handleExportJSON} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Export JSON"><FaDownload />Export</button>
+                        <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Import JSON"><FaUpload />Import</button>
+                        <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleImportJSON} />
+                    </div>
                 )}
-                {isAddingPath && fromNode && toNode && (
-                    <FeatureGroup>
-                        <EditControl
-                            position="topright"
-                            draw={{ rectangle: false, polygon: false, polyline: true, circle: false, marker: false }}
-                            onCreated={handleRouteCreated}
-                        />
-                    </FeatureGroup>
+                {showSaveToast && (
+                    <div style={{ position: 'absolute', bottom: 80, left: 16, background: '#4caf50', color: 'white', padding: '8px 16px', borderRadius: 6, fontWeight: 500, boxShadow: '0 2px 8px rgba(0,0,0,0.08)' }}>
+                        Saved!
+                    </div>
                 )}
+            </div>
+            {/* Add measurement display */}
+            {currentMeasurement && (
+                <div style={{
+                    position: 'fixed',
+                    bottom: 100,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    background: 'rgba(0, 0, 0, 0.7)',
+                    color: 'white',
+                    padding: '8px 16px',
+                    borderRadius: '4px',
+                    zIndex: 1000,
+                    fontSize: '14px',
+                    fontWeight: '500'
+                }}>
+                    {currentMeasurement}
+                </div>
+            )}
+            {/* Add Marker Details Panel */}
+            {showMarkerDetails && selectedMarker && (
+                <div style={{
+                    position: 'fixed',
+                    top: '50%',
+                    left: '50%',
+                    transform: 'translate(-50%, -50%)',
+                    background: 'white',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+                    zIndex: 2000,
+                    minWidth: '300px'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                        <h3 style={{ margin: 0 }}>Marker Details</h3>
+                        <button
+                            onClick={() => setShowMarkerDetails(false)}
+                            style={{
+                                background: 'none',
+                                border: 'none',
+                                fontSize: '20px',
+                                cursor: 'pointer',
+                                color: '#666'
+                            }}
+                        >
+                            ×
+                        </button>
+                    </div>
 
-                {/* Render indoor elements only at zoom >=18 */}
-                {zoomLevel >= 19 && (
-                    <>
-                        {/* Markers */}
-                        {objects.map(obj => (
-                            <Marker
-                                key={obj.id}
-                                position={obj.latlng}
-                                icon={getIconByType(obj.type)}
-                                eventHandlers={{ click: () => handleMarkerClick(obj.id) }}
+                    <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', color: '#666' }}>Name</label>
+                        <input
+                            type="text"
+                            value={selectedMarker.name || ''}
+                            onChange={(e) => handleMarkerUpdate({ name: e.target.value })}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                border: '1px solid #ddd'
+                            }}
+                        />
+                    </div>
+
+                    <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', color: '#666' }}>Type</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{
+                                background: MARKER_TYPES[selectedMarker.type]?.color || '#2196f3',
+                                color: 'white',
+                                borderRadius: '50%',
+                                width: '32px',
+                                height: '32px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                border: '2px solid white',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}>
+                                <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                                    <path d={getIconPath(MARKER_TYPES[selectedMarker.type]?.icon || FaMarker)} />
+                                </svg>
+                            </div>
+                            <select
+                                value={selectedMarker.type || 'vendingMachine'}
+                                onChange={(e) => handleMarkerUpdate({ type: e.target.value })}
+                                style={{
+                                    flex: 1,
+                                    padding: '8px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #ddd'
+                                }}
                             >
-                                <Popup>{obj.id}</Popup>
-                            </Marker>
-                        ))}
+                                {Object.entries(MARKER_TYPES).map(([value, { label }]) => (
+                                    <option key={value} value={value}>{label}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
 
-                        {/* Boundaries */}
-                        {boundaries.map((b, i) => (
-                            <Polygon
-                                key={i}
-                                positions={b.geometry.coordinates[0].map(c => [c[1], c[0]])}
+                    <div style={{ marginBottom: '16px' }}>
+                        <label style={{ display: 'block', marginBottom: '8px', color: '#666' }}>Description</label>
+                        <textarea
+                            value={selectedMarker.description || ''}
+                            onChange={(e) => handleMarkerUpdate({ description: e.target.value })}
+                            style={{
+                                width: '100%',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                border: '1px solid #ddd',
+                                minHeight: '80px'
+                            }}
+                        />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                        <button
+                            onClick={() => {
+                                handleDeleteMarker(selectedMarker.id);
+                                setShowMarkerDetails(false);
+                            }}
+                            style={{
+                                padding: '8px 16px',
+                                background: '#f44336',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Delete
+                        </button>
+                        <button
+                            onClick={() => setShowMarkerDetails(false)}
+                            style={{
+                                padding: '8px 16px',
+                                background: '#2196f3',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Close
+                        </button>
+                    </div>
+                </div>
+            )}
+            {/* Main map area */}
+            <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
+                {selectedFloor && floorData[selectedFloor] && (
+                    <>
+                        {/* Bottom-center drawing controls bar */}
+                        <div style={{
+                            position: 'fixed',
+                            left: sidebarCollapsed ? 48 : 260,
+                            right: 0,
+                            bottom: 24,
+                            zIndex: 1100,
+                            display: 'flex',
+                            justifyContent: 'center',
+                            pointerEvents: 'none',
+                        }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                background: '#fff',
+                                borderRadius: 8,
+                                boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
+                                padding: '8px 16px',
+                                gap: 8,
+                                pointerEvents: 'auto',
+                                minWidth: 320,
+                                maxWidth: 600,
+                                margin: '0 auto',
+                            }}>
+                                <span style={{ marginRight: 8 }}>Floor:</span>
+                                <select value={selectedFloor} onChange={e => setSelectedFloor(e.target.value)} style={{ marginRight: 8 }}>
+                                    {floors.map(f => (
+                                        <option key={f.id} value={f.id}>{f.name}</option>
+                                    ))}
+                                </select>
+                                <button
+                                    onClick={() => {
+                                        const newId = `floor_${floors.length + 1}`;
+                                        setFloors(prev => [...prev, { id: newId, name: `Floor ${floors.length + 1}` }]);
+                                        setFloorData(prev => ({
+                                            ...prev,
+                                            [newId]: { objects: [], routes: [], boundaries: [], innerBoundaries: [] }
+                                        }));
+                                        setSelectedFloor(newId);
+                                    }}
+                                    style={{ padding: '4px 8px', background: '#4285F4', color: 'white', border: 'none', borderRadius: 4, marginRight: 8 }}
+                                >
+                                    + Add Floor
+                                </button>
+                                <div style={{ display: 'flex', gap: 8 }}>
+                                    <button
+                                        onClick={() => handleSetDrawingMode('marker')}
+                                        style={{
+                                            padding: '4px 8px',
+                                            background: drawingMode === 'marker' ? '#e91e63' : '#fce4ec',
+                                            color: drawingMode === 'marker' ? 'white' : '#e91e63',
+                                            border: '1px solid #e91e63',
+                                            borderRadius: 4,
+                                            fontWeight: 500,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: 4
+                                        }}
+                                        title={drawingMode === 'marker' ? "Click on map to place marker" : "Add Marker"}
+                                    >
+                                        <FaMapMarkerAlt />
+                                        {drawingMode === 'marker' ? 'Click on map to place marker' : 'Add Marker'}
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleSetDrawingMode('polygon')}
+                                        style={{
+                                            padding: '4px 8px',
+                                            background: drawingMode === 'polygon' ? '#607d8b' : '#eceff1',
+                                            color: drawingMode === 'polygon' ? 'white' : '#607d8b',
+                                            border: '1px solid #607d8b',
+                                            borderRadius: 4,
+                                            fontWeight: 500
+                                        }}
+                                        title="Draw a boundary"
+                                    >
+                                        {drawingMode === 'polygon' ? 'Drawing Boundary...' : 'Add Boundary'}
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleSetDrawingMode('innerPolygon')}
+                                        style={{
+                                            padding: '4px 8px',
+                                            background: drawingMode === 'innerPolygon' ? '#ff7043' : '#fff3e0',
+                                            color: drawingMode === 'innerPolygon' ? 'white' : '#ff7043',
+                                            border: '1px solid #ff7043',
+                                            borderRadius: 4,
+                                            fontWeight: 500
+                                        }}
+                                        title="Draw an inner boundary for shops/facilities"
+                                    >
+                                        {drawingMode === 'innerPolygon' ? 'Drawing Inner Boundary...' : 'Add Inner Boundary'}
+                                    </button>
+
+                                    <button
+                                        onClick={() => handleSetDrawingMode('polyline')}
+                                        style={{
+                                            padding: '4px 8px',
+                                            background: drawingMode === 'polyline' ? '#1976d2' : '#e3f2fd',
+                                            color: drawingMode === 'polyline' ? 'white' : '#1976d2',
+                                            border: '1px solid #1976d2',
+                                            borderRadius: 4,
+                                            fontWeight: 500
+                                        }}
+                                        title="Draw a path"
+                                    >
+                                        {drawingMode === 'polyline' ? 'Drawing Path...' : 'Add Path'}
+                                    </button>
+
+                                    <button
+                                        onClick={() => setMapType(mapType === 'normal' ? 'satellite' : 'normal')}
+                                        style={{ padding: '4px 8px', background: mapType === 'normal' ? '#eceff1' : '#607d8b', color: mapType === 'normal' ? '#607d8b' : 'white', border: '1px solid #607d8b', borderRadius: 4, fontWeight: 500 }}
+                                    >
+                                        {mapType === 'normal' ? 'Satellite' : 'Normal'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <MapContainer
+                            center={[26.4494, 80.1935]}
+                            zoom={18}
+                            maxZoom={30}
+                            style={{ height: '100vh', width: '100vw' }}
+                            ref={mapRef}
+                            whenReady={() => {
+                                if (mapRef.current) {
+                                    mapRef.current.invalidateSize();
+                                }
+                            }}
+                        >
+                            <TileLayer
+                                url={mapType === 'normal'
+                                    ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                                    : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'}
+                                maxZoom={20}
+                                maxNativeZoom={19}
+                                attribution={mapType === 'normal' ? '&copy; OSM contributors' : '&copy; Esri'}
                             />
-                        ))}
 
-                        {/* Routes */}
-                        {routes.map((route, i) => {
-                            const mergedPath = getMergedPath(route, routes, objects);
-
-                            return (
-                                <React.Fragment key={i}>
-                                    {/* Path casing (outer white border) */}
-                                    <Polyline
-                                        positions={mergedPath.map(p => [p.y, p.x])}
-                                        color="#FFFFFF"
-                                        weight={8}
-                                        opacity={1}
-                                        lineCap="round"
-                                        lineJoin="round"
-                                        shadowColor="#000"
-                                        shadowOpacity={0.2}
-                                        shadowBlur={5}
+                            {/* Single EditControl for both drawing and editing */}
+                            <FeatureGroup ref={featureGroupRef}>
+                                {/* Add existing markers */}
+                                {floorData[selectedFloor]?.objects?.map(obj => (
+                                    <Marker
+                                        key={obj.id}
+                                        position={obj.latlng}
+                                        icon={L.divIcon({
+                                            className: '',
+                                            html: `<div style="
+                                                background: ${drawingMode === 'polyline' &&
+                                                    ((pathCreationStep === 'from' && pathFromMarker?.id === obj.id) ||
+                                                        (pathCreationStep === 'to' && pathToMarker?.id === obj.id))
+                                                    ? '#e91e63' : MARKER_TYPES[obj.type]?.color || '#2196f3'};
+                                                color: white;
+                                                border-radius: 50%;
+                                                width: 32px;
+                                                height: 32px;
+                                                transform: translate(-16px, -16px);
+                                                display: flex;
+                                                align-items: center;
+                                                justify-content: center;
+                                                border: 2px solid white;
+                                                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+                                            ">
+                                                <svg viewBox="0 0 24 24" width="20" height="20" fill="white">
+                                                    <path d="${getIconPath(MARKER_TYPES[obj.type]?.icon || FaMarker)}"/>
+                                                </svg>
+                                            </div>`
+                                        })}
+                                        options={{
+                                            id: obj.id,
+                                            type: obj.type,
+                                            name: obj.name
+                                        }}
+                                        eventHandlers={{
+                                            click: () => handleMarkerClick(obj)
+                                        }}
                                     />
+                                ))}
 
-                                    {/* Main path */}
+                                {/* Add existing boundaries */}
+                                {floorData[selectedFloor]?.boundaries?.map((boundary, i) => (
+                                    <Polygon
+                                        key={boundary.id}
+                                        positions={boundary.geometry.coordinates[0].map(c => [c[1], c[0]])}
+                                        pathOptions={{
+                                            color: '#607d8b',
+                                            fillColor: '#b0bec5',
+                                            fillOpacity: 0.2,
+                                            weight: 2
+                                        }}
+                                        options={{
+                                            id: boundary.id,
+                                            type: 'boundary',
+                                            options: {
+                                                id: boundary.id,
+                                                type: 'boundary'
+                                            }
+                                        }}
+                                    />
+                                ))}
+
+                                {/* Add existing inner boundaries */}
+                                {floorData[selectedFloor]?.innerBoundaries?.map((boundary, i) => (
+                                    <Polygon
+                                        key={boundary.id}
+                                        positions={boundary.geometry.coordinates[0].map(c => [c[1], c[0]])}
+                                        pathOptions={{
+                                            color: '#ff7043',
+                                            fillColor: '#ffccbc',
+                                            fillOpacity: 0.3,
+                                            weight: 2,
+                                            dashArray: '5, 5'
+                                        }}
+                                        options={{
+                                            id: boundary.id,
+                                            type: 'innerBoundary',
+                                            options: {
+                                                id: boundary.id,
+                                                type: 'innerBoundary'
+                                            }
+                                        }}
+                                    />
+                                ))}
+
+                                {/* Add existing routes */}
+                                {floorData[selectedFloor]?.routes?.map((route, i) => (
                                     <Polyline
-                                        positions={mergedPath.map(p => [p.y, p.x])}
+                                        key={route.id}
+                                        positions={route.path.map(p => [p.y, p.x])}
                                         color={PATH_COLORS.primary}
                                         weight={6}
                                         opacity={1}
                                         smoothFactor={1}
                                         lineCap="round"
                                         lineJoin="round"
-                                        shadowColor="#000"
-                                        shadowOpacity={0.2}
-                                        shadowBlur={5}
+                                        options={{
+                                            id: route.id,
+                                            options: {
+                                                id: route.id
+                                            }
+                                        }}
                                     />
+                                ))}
 
-                                    {/* Animated arrows */}
-                                    <Polyline
-                                        positions={mergedPath.map(p => [p.y, p.x])}
-                                        color={PATH_COLORS.arrows}
-                                        weight={2}
-                                        opacity={0.8}
-                                        className="path-arrow"
-                                        dashArray="12, 24"
-                                        lineCap="round"
-                                        lineJoin="round"
-                                        shadowColor="#000"
-                                        shadowOpacity={0.2}
-                                        shadowBlur={5}
-                                    />
-                                </React.Fragment>
-                            );
-                        })}
+                                {/* EditControl */}
+                                <EditControl
+                                    ref={drawControlRef}
+                                    position="topright"
+                                    draw={{
+                                        rectangle: false,
+                                        polygon: drawingMode === 'polygon' || drawingMode === 'innerPolygon',
+                                        polyline: drawingMode === 'polyline' && pathCreationStep === 'draw',
+                                        circle: false,
+                                        marker: drawingMode === 'marker',
+                                        circlemarker: false
+                                    }}
+                                    edit={true}
+                                    onCreated={handleCreated}
+                                    onEdited={handleEdited}
+                                    onDeleted={handleDeleted}
+                                    onDrawStart={handleDrawStart}
+                                    onDrawVertex={handleDrawVertex}
+                                />
+                            </FeatureGroup>
+                        </MapContainer>
                     </>
                 )}
-
-                {/* User location and path */}
-                {userPosition && (
-                    <>
-                        {/* User marker */}
-                        <CircleMarker
-                            center={userPosition}
-                            radius={8}
-                            color="#4285F4"
-                            weight={2}
-                            fillColor="#4285F4"
-                            fillOpacity={0.7}
-                        >
-                            <Popup>You are here</Popup>
-                        </CircleMarker>
-
-                        {/* User path */}
-                        {userPath.length > 1 && (
-                            <>
-                                {/* Path casing */}
-                                <Polyline
-                                    positions={userPath}
-                                    color="#FFFFFF"
-                                    weight={8}
-                                    opacity={1}
-                                    lineCap="round"
-                                    lineJoin="round"
-                                />
-
-                                {/* Main path */}
-                                <Polyline
-                                    positions={userPath}
-                                    color="#4285F4"
-                                    weight={6}
-                                    opacity={0.8}
-                                    lineCap="round"
-                                    lineJoin="round"
-                                />
-                            </>
-                        )}
-                    </>
-                )}
-
-                <ClickHandler addLatLng={addLatLng} selectedType={selectedType} isAddingPath={isAddingPath} />
-            </MapContainer>
+            </div>
         </div>
     );
 };
 
-export default MapBuilder;
