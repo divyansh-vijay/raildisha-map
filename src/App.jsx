@@ -7,10 +7,10 @@ import './App.css';
 function App() {
 	return (
 		<Router>
-			<Routes>
+			<Routes >
 				<Route path="/builder" element={<MapBuilder />} />
 				<Route path="/viewer" element={<MapViewer2D />} />
-				<Route path="/" element={<Navigate to="/builder" replace />} />
+				<Route path="/" element={<Navigate to="/viewer" replace />} />
 			</Routes>
 		</Router>
 	);

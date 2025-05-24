@@ -974,7 +974,16 @@ export default function MapBuilder() {
 
     // Main render
     return (
-        <div style={{ position: 'relative', color: 'black', height: '100vh', width: '100vw', background: '#f7f7fa' }}>
+        <div style={{ 
+            position: 'fixed',  // Change from relative to fixed
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            color: 'black',
+            background: '#f7f7fa',
+            overflow: 'hidden'  // Prevent scrolling
+        }}>
             {/* Sidebar (fixed left, overlay) */}
             <div style={{
                 position: 'fixed',
@@ -1320,7 +1329,14 @@ export default function MapBuilder() {
                 </div>
             )}
             {/* Main map area */}
-            <div style={{ height: '100vh', width: '100vw', position: 'relative' }}>
+            <div style={{ 
+                position: 'fixed',  // Change from relative to fixed
+                top: 0,
+                left: sidebarCollapsed ? 48 : 260,
+                right: 0,
+                bottom: 0,
+                overflow: 'hidden'  // Prevent scrolling
+            }}>
                 {selectedFloor && floorData[selectedFloor] && (
                     <>
                         {/* Bottom-center drawing controls bar */}
@@ -1445,7 +1461,15 @@ export default function MapBuilder() {
                             center={[26.4494, 80.1935]}
                             zoom={18}
                             maxZoom={30}
-                            style={{ height: '100vh', width: '100vw' }}
+                            style={{ 
+                                height: '100%',  // Change from 100vh to 100%
+                                width: '100%',   // Change from 100vw to 100%
+                                position: 'absolute',
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0
+                            }}
                             ref={mapRef}
                             whenReady={() => {
                                 if (mapRef.current) {
