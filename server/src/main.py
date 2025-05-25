@@ -1,45 +1,94 @@
-import os
-import sys
-from pathlib import Path
-
-# Add the parent directory to Python path when running directly
-if __name__ == "__main__":
-    parent_dir = str(Path(__file__).parent.parent)
-    sys.path.append(parent_dir)
-
-import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from src.routes import maps, markers, paths, boundaries
-from dotenv import load_dotenv
+from sqlalchemy.orm import Session
+from typing import Dict, Any
+from .database import engine, get_db
+from .models.base import Base, MapData
+import logging
 
-# Load environment variables
-load_dotenv()
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Create FastAPI app
-app = FastAPI(title="RailDisha Map API")
+# Create tables
+Base.metadata.create_all(bind=engine)
 
-# Configure CORS
+app = FastAPI()
+
+# Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend domain
+    allow_origins=["*"],  # Allows all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows all methods
+    allow_headers=["*"],  # Allows all headers
 )
 
-# Health check endpoint
-@app.get("/health")
-async def health_check():
-    return {"status": "ok"}
+@app.get("/api/maps")
+def get_map_data(db: Session = Depends(get_db)):
+    """Get the latest map data"""
+    try:
+        # Get the latest map data
+        map_data = db.query(MapData).order_by(MapData.id.desc()).first()
+        logger.info(f"Retrieved map data: {map_data}")
+        
+        if map_data:
+            # Ensure the response has the expected structure
+            data = map_data.data
+            logger.info(f"Raw data from database: {data}")
+            
+            if not isinstance(data, dict):
+                logger.warning(f"Data is not a dictionary: {type(data)}")
+                data = {"floors": [], "floorData": {}, "selectedFloor": None}
+            
+            if "floors" not in data:
+                logger.warning("floors field missing, adding empty array")
+                data["floors"] = []
+            if "floorData" not in data:
+                logger.warning("floorData field missing, adding empty object")
+                data["floorData"] = {}
+            if "selectedFloor" not in data:
+                logger.warning("selectedFloor field missing, adding null")
+                data["selectedFloor"] = None
+                
+            logger.info(f"Returning processed data: {data}")
+            return data
+            
+        # Return empty data structure if no data exists
+        logger.info("No data found in database, returning empty structure")
+        return {
+            "floors": [],
+            "floorData": {},
+            "selectedFloor": None
+        }
+    except Exception as e:
+        logger.error(f"Error in get_map_data: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
-# Include routers
-app.include_router(maps.router, prefix="/api/maps", tags=["maps"])
-app.include_router(markers.router, prefix="/api/markers", tags=["markers"])
-app.include_router(paths.router, prefix="/api/paths", tags=["paths"])
-app.include_router(boundaries.router, prefix="/api/boundaries", tags=["boundaries"])
+@app.post("/api/maps")
+def save_map_data(data: Dict[str, Any], db: Session = Depends(get_db)):
+    """Save map data"""
+    try:
+        logger.info(f"Received data to save: {data}")
+        
+        # Delete all existing data
+        db.query(MapData).delete()
+        db.commit()
+        logger.info("Deleted existing data")
+        
+        # Create new map data entry
+        new_map_data = MapData(data=data)
+        db.add(new_map_data)
+        db.commit()
+        db.refresh(new_map_data)
+        logger.info(f"Saved new data: {new_map_data.data}")
+        
+        return {"message": "Map data saved successfully", "data": new_map_data.data}
+    except Exception as e:
+        logger.error(f"Error in save_map_data: {str(e)}")
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
-    host = os.getenv("HOST", "0.0.0.0")
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host=host, port=port) 
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000) 

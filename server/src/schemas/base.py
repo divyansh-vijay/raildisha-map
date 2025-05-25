@@ -9,12 +9,22 @@ class Position(BaseModel):
 class FloorBase(BaseModel):
     name: str
     level: int
-    map_data: Dict[str, Any]  # Store all map data as JSON
+    map_data: Dict[str, Any] = {
+        "objects": [],
+        "routes": [],
+        "boundaries": [],
+        "innerBoundaries": []
+    }
 
 class FloorCreate(FloorBase):
     pass
 
-class Floor(FloorBase):
+class FloorUpdate(FloorBase):
+    name: Optional[str] = None
+    level: Optional[int] = None
+    map_data: Optional[Dict[str, Any]] = None
+
+class FloorResponse(FloorBase):
     id: int
     created_at: datetime
     updated_at: Optional[datetime] = None

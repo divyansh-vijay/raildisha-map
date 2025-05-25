@@ -1,59 +1,54 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 from ..database import get_db
-from ..models.base import Marker
-from ..schemas.base import MarkerCreate, Marker as MarkerSchema
+from ..models.base import Floor
 
 router = APIRouter()
 
-@router.post("/", response_model=MarkerSchema)
-def create_marker(marker: MarkerCreate, db: Session = Depends(get_db)):
-    db_marker = Marker(**marker.model_dump())
-    db.add(db_marker)
-    db.commit()
-    db.refresh(db_marker)
-    return db_marker
-
-@router.get("/", response_model=List[MarkerSchema])
+@router.get("/")
 def get_markers(
     floor_id: int = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    query = db.query(Marker)
-    if floor_id is not None:
-        query = query.filter(Marker.floor_id == floor_id)
-    markers = query.offset(skip).limit(limit).all()
-    return markers
+    if floor_id is None:
+        raise HTTPException(status_code=400, detail="floor_id is required")
+    
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
+    
+    markers = floor.map_data.get("objects", [])
+    return markers[skip:skip + limit]
 
-@router.get("/{marker_id}", response_model=MarkerSchema)
-def get_marker(marker_id: int, db: Session = Depends(get_db)):
-    marker = db.query(Marker).filter(Marker.id == marker_id).first()
-    if marker is None:
-        raise HTTPException(status_code=404, detail="Marker not found")
+@router.post("/")
+def create_marker(marker: Dict[str, Any], floor_id: int, db: Session = Depends(get_db)):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
+    
+    # Add marker to floor's map_data
+    if "objects" not in floor.map_data:
+        floor.map_data["objects"] = []
+    
+    floor.map_data["objects"].append(marker)
+    db.commit()
     return marker
 
-@router.put("/{marker_id}", response_model=MarkerSchema)
-def update_marker(marker_id: int, marker: MarkerCreate, db: Session = Depends(get_db)):
-    db_marker = db.query(Marker).filter(Marker.id == marker_id).first()
-    if db_marker is None:
-        raise HTTPException(status_code=404, detail="Marker not found")
-    
-    for key, value in marker.model_dump().items():
-        setattr(db_marker, key, value)
-    
-    db.commit()
-    db.refresh(db_marker)
-    return db_marker
-
 @router.delete("/{marker_id}")
-def delete_marker(marker_id: int, db: Session = Depends(get_db)):
-    db_marker = db.query(Marker).filter(Marker.id == marker_id).first()
-    if db_marker is None:
-        raise HTTPException(status_code=404, detail="Marker not found")
+def delete_marker(marker_id: str, floor_id: int, db: Session = Depends(get_db)):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
     
-    db.delete(db_marker)
-    db.commit()
+    # Remove marker from floor's map_data
+    if "objects" in floor.map_data:
+        floor.map_data["objects"] = [
+            obj for obj in floor.map_data["objects"]
+            if obj.get("id") != marker_id
+        ]
+        db.commit()
+    
     return {"message": "Marker deleted successfully"} 

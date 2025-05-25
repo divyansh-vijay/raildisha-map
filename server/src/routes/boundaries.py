@@ -1,59 +1,54 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Dict, Any
 from ..database import get_db
-from ..models.base import Boundary
-from ..schemas.base import BoundaryCreate, Boundary as BoundarySchema
+from ..models.base import Floor
 
 router = APIRouter()
 
-@router.post("/", response_model=BoundarySchema)
-def create_boundary(boundary: BoundaryCreate, db: Session = Depends(get_db)):
-    db_boundary = Boundary(**boundary.model_dump())
-    db.add(db_boundary)
-    db.commit()
-    db.refresh(db_boundary)
-    return db_boundary
-
-@router.get("/", response_model=List[BoundarySchema])
+@router.get("/")
 def get_boundaries(
     floor_id: int = None,
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    query = db.query(Boundary)
-    if floor_id is not None:
-        query = query.filter(Boundary.floor_id == floor_id)
-    boundaries = query.offset(skip).limit(limit).all()
-    return boundaries
+    if floor_id is None:
+        raise HTTPException(status_code=400, detail="floor_id is required")
+    
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
+    
+    boundaries = floor.map_data.get("boundaries", [])
+    return boundaries[skip:skip + limit]
 
-@router.get("/{boundary_id}", response_model=BoundarySchema)
-def get_boundary(boundary_id: int, db: Session = Depends(get_db)):
-    boundary = db.query(Boundary).filter(Boundary.id == boundary_id).first()
-    if boundary is None:
-        raise HTTPException(status_code=404, detail="Boundary not found")
+@router.post("/")
+def create_boundary(boundary: Dict[str, Any], floor_id: int, db: Session = Depends(get_db)):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
+    
+    # Add boundary to floor's map_data
+    if "boundaries" not in floor.map_data:
+        floor.map_data["boundaries"] = []
+    
+    floor.map_data["boundaries"].append(boundary)
+    db.commit()
     return boundary
 
-@router.put("/{boundary_id}", response_model=BoundarySchema)
-def update_boundary(boundary_id: int, boundary: BoundaryCreate, db: Session = Depends(get_db)):
-    db_boundary = db.query(Boundary).filter(Boundary.id == boundary_id).first()
-    if db_boundary is None:
-        raise HTTPException(status_code=404, detail="Boundary not found")
-    
-    for key, value in boundary.model_dump().items():
-        setattr(db_boundary, key, value)
-    
-    db.commit()
-    db.refresh(db_boundary)
-    return db_boundary
-
 @router.delete("/{boundary_id}")
-def delete_boundary(boundary_id: int, db: Session = Depends(get_db)):
-    db_boundary = db.query(Boundary).filter(Boundary.id == boundary_id).first()
-    if db_boundary is None:
-        raise HTTPException(status_code=404, detail="Boundary not found")
+def delete_boundary(boundary_id: str, floor_id: int, db: Session = Depends(get_db)):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(status_code=404, detail="Floor not found")
     
-    db.delete(db_boundary)
-    db.commit()
+    # Remove boundary from floor's map_data
+    if "boundaries" in floor.map_data:
+        floor.map_data["boundaries"] = [
+            boundary for boundary in floor.map_data["boundaries"]
+            if boundary.get("id") != boundary_id
+        ]
+        db.commit()
+    
     return {"message": "Boundary deleted successfully"} 

@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from src.database import get_db
-from src.models.base import Floor
-from typing import List, Dict
+from ..database import get_db
+from ..models.base import Floor
+from typing import List, Dict, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -25,7 +25,7 @@ class FloorCreate(FloorBase):
 class FloorResponse(FloorBase):
     id: int
     created_at: datetime
-    updated_at: datetime | None = None
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

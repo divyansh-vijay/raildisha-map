@@ -5,7 +5,7 @@ import L from 'leaflet';
 import { FaMarker, FaStore, FaDoorOpen, FaInfoCircle, FaRoute } from 'react-icons/fa';
 import { FaElevator, FaStairs } from 'react-icons/fa6';
 import { FaUtensils } from 'react-icons/fa';
-import { getFloors } from '../src/services/api';
+import { getMapData } from '../src/services/api';
 
 // Constants
 const MARKER_TYPES = {
@@ -31,7 +31,7 @@ const getIconPath = (IconComponent) => {
         // POI icons
         FaUtensils: "M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z",
         FaShoppingBag: "M18 6h-2c0-2.21-1.79-4-4-4S8 3.79 8 6H6c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-8 4c0 .55-.45 1-1 1s-1-.45-1-1V8h2v2zm2-6c1.1 0 2 .9 2 2h-4c0-1.1.9-2 2-2zm4 6c0 .55-.45 1-1 1s-1-.45-1-1V8h2v2z",
-        FaBuilding: "M17 11V3H7v4H3v14h18V11H17zM7 19H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm4 8H9v-2h2v2zm0-4H9v-2h2v2zm0-4H9V5h2v2zm4 12h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2z",
+        FaBuilding: "M17 11V3H7v4H3v14h18V11H17zM7 19H5v-2h2v2zm0-4H5v-2h2v2zm0-4H5V9h2v2zm4 8H9v-2h2v2zm0-4H9v-2h2v2zm0-4H9V5h2v2zm4 12h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2v-2h2v2zm0-4h-2V9h2v2zm0-4h-2V5h2v2z",
         FaParking: "M13 3H6v18h4v-6h3c3.31 0 6-2.69 6-6s-2.69-6-6-6zm.2 8H10V7h3.2c1.1 0 2 .9 2 2s-.9 2-2 2z",
         FaInfoCircle: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z",
         // Custom marker icons
@@ -53,108 +53,136 @@ const getIconPath = (IconComponent) => {
 };
 
 // Main component
-const MapViewer2D = () => {
+export default function MapViewer2D() {
     const mapRef = useRef(null);
     const navigate = useNavigate();
-    const [floorData, setFloorData] = useState(null);
+    const [floors, setFloors] = useState([]);
     const [selectedFloor, setSelectedFloor] = useState(null);
+    const [floorData, setFloorData] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const [routeMode, setRouteMode] = useState(null);
     const [selectedRoute, setSelectedRoute] = useState(null);
     const [fromMarker, setFromMarker] = useState(null);
     const [toMarker, setToMarker] = useState(null);
     const [error, setError] = useState(null);
-    const [objects, setObjects] = useState([]);
-    const [routes, setRoutes] = useState([]);
-    const [boundaries, setBoundaries] = useState([]);
-    const [innerBoundaries, setInnerBoundaries] = useState([]);
 
-    // Load data from localStorage or server when component mounts
     useEffect(() => {
         const loadData = async () => {
             try {
-                // Try to load from localStorage first
-                const savedData = localStorage.getItem('mapData');
-                if (savedData) {
-                    const parsedData = JSON.parse(savedData);
-                    setObjects(parsedData.objects || []);
-                    setRoutes(parsedData.routes || []);
-                    setBoundaries(parsedData.boundaries || []);
-                    setInnerBoundaries(parsedData.innerBoundaries || []);
+                setIsLoading(true);
+                setError(null);
+
+                let data;
+                
+                // First try to load from API/database
+                console.log('Fetching data from API...');
+                try {
+                    const apiResponse = await getMapData();
+                    console.log('API response:', apiResponse);
+                    
+                    // Transform the API response into the expected format
+                    data = {
+                        floors: [{
+                            id: `floor_${apiResponse.level}`,
+                            name: apiResponse.name || `Floor ${apiResponse.level}`,
+                            level: apiResponse.level
+                        }],
+                        floorData: {
+                            [`floor_${apiResponse.level}`]: {
+                                objects: apiResponse.map_data.objects || [],
+                                routes: apiResponse.map_data.routes || [],
+                                boundaries: apiResponse.map_data.boundaries || [],
+                                innerBoundaries: apiResponse.map_data.innerBoundaries || []
+                            }
+                        },
+                        selectedFloor: `floor_${apiResponse.level}`
+                    };
+                    
+                    console.log('Transformed data:', data);
+                    
+                    // Save to localStorage for future use
+                    if (data && data.floors && data.floorData) {
+                        console.log('Saving data to localStorage...');
+                        localStorage.setItem('rd_map_data', JSON.stringify(data));
+                        console.log('Data saved to localStorage successfully');
+                    }
+                } catch (apiError) {
+                    console.error('Error fetching from API:', apiError);
+                    
+                    // If API fails, try loading from localStorage
+                    console.log('Falling back to localStorage...');
+                    const savedData = localStorage.getItem('rd_map_data');
+                    if (savedData) {
+                        try {
+                            data = JSON.parse(savedData);
+                            console.log('Successfully loaded from localStorage:', {
+                                hasFloors: !!data?.floors,
+                                floorsCount: data?.floors?.length,
+                                hasFloorData: !!data?.floorData,
+                                floorDataKeys: data?.floorData ? Object.keys(data.floorData) : []
+                            });
+                        } catch (e) {
+                            console.error('Error parsing localStorage data:', e);
+                            localStorage.removeItem('rd_map_data');
+                        }
+                    }
+                }
+                
+                if (!data || !data.floors || !data.floorData) {
+                    console.error('Invalid data structure received:', data);
+                    setError('Invalid data structure received from server');
                     return;
                 }
 
-                // If no localStorage data, fetch from server
-                const response = await getFloors();
-                if (response && response.length > 0) {
-                    // Get the first floor's data
-                    const floorData = response[0].map_data;
-                    setObjects(floorData.objects || []);
-                    setRoutes(floorData.routes || []);
-                    setBoundaries(floorData.boundaries || []);
-                    setInnerBoundaries(floorData.innerBoundaries || []);
+                // Ensure floors are properly formatted
+                const formattedFloors = data.floors.map(floor => ({
+                    id: floor.id || `floor_${floor.level}`,
+                    name: floor.name || `Floor ${floor.level}`,
+                    level: floor.level
+                }));
+
+                console.log('Formatted floors:', formattedFloors);
+
+                setFloors(formattedFloors);
+                setFloorData(data.floorData);
+                
+                // Set initial selected floor
+                if (data.selectedFloor) {
+                    console.log('Setting selected floor from data:', data.selectedFloor);
+                    setSelectedFloor(data.selectedFloor);
+                } else if (formattedFloors.length > 0) {
+                    console.log('Setting first floor as selected:', formattedFloors[0].id);
+                    setSelectedFloor(formattedFloors[0].id);
                 } else {
-                    setError('No map data available');
+                    console.error('No floors available to select');
                 }
             } catch (err) {
-                console.error('Error loading map data:', err);
+                console.error('Error loading data:', err);
                 setError('Failed to load map data');
+            } finally {
+                setIsLoading(false);
             }
         };
 
         loadData();
     }, []);
 
-    // Early return for loading state
     if (isLoading) {
-        return (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f7f7fa' }}>
-                <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>Loading map data...</div>
-            </div>
-        );
+        return <div>Loading map data...</div>;
     }
 
-    // Early return for error state
     if (error) {
-        return (
-            <div style={{ 
-                position: 'fixed',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: '#f7f7fa',
-                overflow: 'hidden'
-            }}>
-                <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    height: '100%', 
-                    background: '#f7f7fa' 
-                }}>
-                    <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>{error}</div>
-                    <button
-                        onClick={() => navigate('/builder')}
-                        style={{ 
-                            background: '#4285F4', 
-                            color: 'white', 
-                            border: 'none', 
-                            borderRadius: 4, 
-                            padding: '12px 24px', 
-                            fontWeight: 500, 
-                            fontSize: 16 
-                        }}
-                    >
-                        Return to Builder
-                    </button>
-                </div>
-            </div>
-        );
+        return <div>Error: {error}</div>;
     }
+
+    if (!floorData || !selectedFloor || !floorData[selectedFloor]) {
+        return <div>No map data available</div>;
+    }
+
+    const currentFloorData = floorData[selectedFloor];
 
     const handleMarkerClick = (marker) => {
+        console.log('Marker clicked:', marker);
         if (routeMode === 'from') {
             setFromMarker(marker);
             setRouteMode('to');
@@ -167,21 +195,103 @@ const MapViewer2D = () => {
     const findRoute = () => {
         if (!fromMarker || !toMarker) return;
 
-        // Find all routes that connect from and to markers
-        const routes = floorData[selectedFloor].routes.filter(route => 
-            (route.from === fromMarker.id && route.to === toMarker.id) ||
-            (route.from === toMarker.id && route.to === fromMarker.id)
-        );
+        console.log('Finding route between:', {
+            from: fromMarker,
+            to: toMarker,
+            availableRoutes: currentFloorData.routes
+        });
+
+        // Find routes that connect the markers based on their IDs
+        const routes = currentFloorData.routes.filter(route => {
+            console.log('Checking route:', {
+                routeId: route.id,
+                routeFrom: route.from,
+                routeTo: route.to,
+                fromMarkerId: fromMarker.id,
+                toMarkerId: toMarker.id
+            });
+
+            // Check if route connects the markers by ID
+            const connectsMarkers = (
+                (route.from === fromMarker.id && route.to === toMarker.id) ||
+                (route.from === toMarker.id && route.to === fromMarker.id)
+            );
+
+            console.log('Route match result:', {
+                routeId: route.id,
+                connectsMarkers
+            });
+
+            return connectsMarkers;
+        });
+
+        console.log('Found matching routes:', routes);
 
         if (routes.length > 0) {
             setSelectedRoute(routes[0]);
+            console.log('Selected route:', routes[0]);
         } else {
-            // Show no route message
-            alert('No route found between these points');
+            console.log('No route found between markers');
+            alert(`No direct route found between these points.
+From: ${fromMarker.name || 'Point ' + fromMarker.id}
+To: ${toMarker.name || 'Point ' + toMarker.id}
+
+Total available routes: ${currentFloorData.routes.length}`);
         }
 
         // Reset route mode
         setRouteMode(null);
+    };
+
+    // Update route rendering to use points array
+    const renderRoute = (route) => {
+        if (!route.path || !Array.isArray(route.path)) return null;
+
+        // Convert points to [lat, lng] format
+        const positions = route.path.map(point => [point.y, point.x]);
+
+        return (
+            <React.Fragment key={route.id}>
+                {/* Outer glow effect */}
+                <Polyline
+                    positions={positions}
+                    color={PATH_COLORS.highlightSecondary}
+                    weight={12}
+                    opacity={0.3}
+                    lineCap="round"
+                    lineJoin="round"
+                />
+                {/* Path casing (outer white border) */}
+                <Polyline
+                    positions={positions}
+                    color={PATH_COLORS.arrows}
+                    weight={8}
+                    opacity={1}
+                    lineCap="round"
+                    lineJoin="round"
+                />
+                {/* Main path */}
+                <Polyline
+                    positions={positions}
+                    color={PATH_COLORS.highlight}
+                    weight={6}
+                    opacity={1}
+                    smoothFactor={1}
+                    lineCap="round"
+                    lineJoin="round"
+                />
+                {/* Animated arrows */}
+                <Polyline
+                    positions={positions}
+                    color={PATH_COLORS.arrows}
+                    weight={2}
+                    opacity={0.8}
+                    dashArray="12, 24"
+                    lineCap="round"
+                    lineJoin="round"
+                />
+            </React.Fragment>
+        );
     };
 
     const startRouteSelection = () => {
@@ -198,8 +308,13 @@ const MapViewer2D = () => {
         setSelectedRoute(null);
     };
 
+    const handleFloorChange = (floorId) => {
+        console.log('Changing floor to:', floorId);
+        setSelectedFloor(floorId);
+    };
+
     return (
-        <div style={{ 
+        <div style={{
             position: 'fixed',
             top: 0,
             left: 0,
@@ -208,59 +323,184 @@ const MapViewer2D = () => {
             background: '#f7f7fa',
             overflow: 'hidden'
         }}>
-            {!floorData ? (
-                <div style={{ 
-                    display: 'flex', 
-                    flexDirection: 'column', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    height: '100%', 
-                    background: '#f7f7fa' 
+            {/* Floor selector */}
+            <div style={{
+                position: 'absolute',
+                bottom: 100,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 1000,
+                background: 'rgba(255, 255, 255, 0.9)',
+                padding: '6px 12px',
+                borderRadius: 20,
+                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                backdropFilter: 'blur(8px)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+            }}>
+                <select
+                    value={selectedFloor}
+                    onChange={(e) => handleFloorChange(e.target.value)}
+                    style={{
+                        padding: '4px 8px',
+                        borderRadius: 16,
+                        border: '1px solid rgba(0,0,0,0.1)',
+                        background: 'transparent',
+                        color: '#333',
+                        fontSize: 14,
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        outline: 'none',
+                        appearance: 'none',
+                        paddingRight: 24
+                    }}
+                >
+                    {floors.map(floor => (
+                        <option key={floor.id} value={floor.id}>
+                            {`Floor ${floor.level}`}
+                        </option>
+                    ))}
+                </select>
+                <div style={{
+                    position: 'absolute',
+                    right: 12,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    pointerEvents: 'none',
+                    color: '#666'
                 }}>
-                    <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>No map data available</div>
+                    ▼
+                </div>
+            </div>
+
+            <MapContainer
+                center={[26.4494, 80.1935]}
+                zoom={18}
+                maxZoom={30}
+                zoomControl={false}
+                style={{
+                    height: '100%',
+                    width: '100%',
+                    position: 'absolute',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0
+                }}
+                ref={mapRef}
+                whenReady={() => {
+                    // Ensure map is properly initialized
+                    if (mapRef.current) {
+                        mapRef.current.invalidateSize();
+                    }
+                }}
+            >
+                <TileLayer
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    maxZoom={20}
+                    maxNativeZoom={19}
+                    attribution="&copy; OSM contributors"
+                />
+
+                {/* Custom Zoom Controls */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: 100,
+                    right: 20,
+                    zIndex: 1000,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 8,
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    padding: '8px',
+                    borderRadius: 20,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    backdropFilter: 'blur(8px)'
+                }}>
                     <button
-                        onClick={() => navigate('/builder')}
-                        style={{ 
-                            background: '#4285F4', 
-                            color: 'white', 
-                            border: 'none', 
-                            borderRadius: 4, 
-                            padding: '12px 24px', 
-                            fontWeight: 500, 
-                            fontSize: 16 
+                        onClick={() => mapRef.current?.zoomIn()}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#333',
+                            fontSize: 20,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '50%',
+                            transition: 'all 0.2s ease'
                         }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                     >
-                        Return to Builder
+                        +
+                    </button>
+                    <button
+                        onClick={() => mapRef.current?.zoomOut()}
+                        style={{
+                            width: 32,
+                            height: 32,
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#333',
+                            fontSize: 20,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderRadius: '50%',
+                            transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        −
                     </button>
                 </div>
-            ) : (
-                <MapContainer
-                    center={[26.4494, 80.1935]}
-                    zoom={18}
-                    maxZoom={30}
-                    style={{ 
-                        height: '100%',
-                        width: '100%',
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        bottom: 0
-                    }}
-                    ref={mapRef}
-                >
-                    <TileLayer
-                        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                        maxZoom={20}
-                        maxNativeZoom={19}
-                        attribution="&copy; OSM contributors"
-                    />
 
-                    {/* Render markers with click handler */}
-                    {floorData[selectedFloor]?.objects?.map(obj => (
+                {/* Render markers with click handler */}
+                {currentFloorData.objects.map((obj) => {
+                    console.log('Processing object:', obj);
+                    // Check if latlng exists and is valid
+                    const latlng = obj.latlng || obj.position || obj.coordinates;
+                    if (!latlng) {
+                        console.log('No coordinates found for object:', obj);
+                        return null;
+                    }
+
+                    // Convert to [lat, lng] format if needed
+                    let finalLatlng;
+                    if (Array.isArray(latlng)) {
+                        finalLatlng = latlng.length === 2 ? latlng : null;
+                    } else if (typeof latlng === 'object' && latlng !== null) {
+                        // Handle {lat, lng} or {x, y} format
+                        if ('lat' in latlng && 'lng' in latlng) {
+                            finalLatlng = [latlng.lat, latlng.lng];
+                        } else if ('x' in latlng && 'y' in latlng) {
+                            finalLatlng = [latlng.y, latlng.x]; // Convert x,y to lat,lng
+                        }
+                    }
+
+                    if (!finalLatlng) {
+                        console.log('Invalid coordinates format:', latlng);
+                        return null;
+                    }
+
+                    // Log valid coordinates
+                    console.log('Valid marker coordinates:', {
+                        id: obj.id,
+                        latlng: finalLatlng,
+                        type: obj.type
+                    });
+
+                    return (
                         <Marker
                             key={obj.id}
-                            position={obj.latlng}
+                            position={finalLatlng}
                             icon={L.divIcon({
                                 className: '',
                                 html: `<div style="
@@ -308,13 +548,51 @@ const MapViewer2D = () => {
                                 </div>
                             </Popup>
                         </Marker>
-                    ))}
+                    );
+                })}
 
-                    {/* Render boundaries */}
-                    {floorData[selectedFloor]?.boundaries?.map((boundary) => (
+                {/* Render boundaries */}
+                {currentFloorData.boundaries.map((boundary) => {
+                    console.log('Processing boundary:', boundary);
+
+                    // Handle different boundary data structures
+                    let coordinates;
+                    if (boundary.geometry?.coordinates?.[0]) {
+                        coordinates = boundary.geometry.coordinates[0];
+                    } else if (boundary.coordinates) {
+                        coordinates = boundary.coordinates;
+                    } else if (boundary.points) {
+                        coordinates = boundary.points;
+                    }
+
+                    if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 3) {
+                        console.log('Invalid boundary coordinates:', boundary);
+                        return null;
+                    }
+
+                    // Convert coordinates to [lat, lng] format
+                    const positions = coordinates.map(coord => {
+                        if (Array.isArray(coord)) {
+                            return coord.length === 2 ? [coord[1], coord[0]] : null;
+                        } else if (typeof coord === 'object' && coord !== null) {
+                            if ('lat' in coord && 'lng' in coord) {
+                                return [coord.lat, coord.lng];
+                            } else if ('x' in coord && 'y' in coord) {
+                                return [coord.y, coord.x];
+                            }
+                        }
+                        return null;
+                    }).filter(Boolean);
+
+                    if (positions.length < 3) {
+                        console.log('Not enough valid points for boundary:', boundary);
+                        return null;
+                    }
+
+                    return (
                         <Polygon
                             key={boundary.id}
-                            positions={boundary.geometry.coordinates[0].map(c => [c[1], c[0]])}
+                            positions={positions}
                             pathOptions={{
                                 color: '#607d8b',
                                 fillColor: '#b0bec5',
@@ -325,18 +603,56 @@ const MapViewer2D = () => {
                             <Popup>
                                 <div style={{ minWidth: 200 }}>
                                     <div style={{ fontWeight: 'bold', marginBottom: 8 }}>
-                                        {boundary.properties?.name || 'Boundary'}
+                                        {boundary.name || 'Boundary'}
                                     </div>
                                 </div>
                             </Popup>
                         </Polygon>
-                    ))}
+                    );
+                })}
 
-                    {/* Render inner boundaries */}
-                    {floorData[selectedFloor]?.innerBoundaries?.map((boundary) => (
+                {/* Render inner boundaries */}
+                {currentFloorData.innerBoundaries?.map((boundary) => {
+                    console.log('Processing inner boundary:', boundary);
+
+                    // Handle different boundary data structures
+                    let coordinates;
+                    if (boundary.geometry?.coordinates?.[0]) {
+                        coordinates = boundary.geometry.coordinates[0];
+                    } else if (boundary.coordinates) {
+                        coordinates = boundary.coordinates;
+                    } else if (boundary.points) {
+                        coordinates = boundary.points;
+                    }
+
+                    if (!coordinates || !Array.isArray(coordinates) || coordinates.length < 3) {
+                        console.log('Invalid inner boundary coordinates:', boundary);
+                        return null;
+                    }
+
+                    // Convert coordinates to [lat, lng] format
+                    const positions = coordinates.map(coord => {
+                        if (Array.isArray(coord)) {
+                            return coord.length === 2 ? [coord[1], coord[0]] : null;
+                        } else if (typeof coord === 'object' && coord !== null) {
+                            if ('lat' in coord && 'lng' in coord) {
+                                return [coord.lat, coord.lng];
+                            } else if ('x' in coord && 'y' in coord) {
+                                return [coord.y, coord.x];
+                            }
+                        }
+                        return null;
+                    }).filter(Boolean);
+
+                    if (positions.length < 3) {
+                        console.log('Not enough valid points for inner boundary:', boundary);
+                        return null;
+                    }
+
+                    return (
                         <Polygon
                             key={boundary.id}
-                            positions={boundary.geometry.coordinates[0].map(c => [c[1], c[0]])}
+                            positions={positions}
                             pathOptions={{
                                 color: '#ff7043',
                                 fillColor: '#ffccbc',
@@ -348,14 +664,8 @@ const MapViewer2D = () => {
                             <Popup>
                                 <div style={{ minWidth: 200 }}>
                                     <div style={{ fontWeight: 'bold', marginBottom: 8 }}>
-                                        {boundary.properties?.name || 'Inner Boundary'}
+                                        {boundary.name || 'Inner Boundary'}
                                     </div>
-                                    {boundary.properties?.category && (
-                                        <div style={{ marginBottom: 8 }}>
-                                            <label>Category: </label>
-                                            <span>{boundary.properties.category}</span>
-                                        </div>
-                                    )}
                                     {boundary.properties?.description && (
                                         <div style={{ marginBottom: 8 }}>
                                             <label>Description: </label>
@@ -365,215 +675,150 @@ const MapViewer2D = () => {
                                 </div>
                             </Popup>
                         </Polygon>
-                    ))}
+                    );
+                })}
 
-                    {/* Render routes */}
-                    {floorData[selectedFloor]?.routes?.map((route) => {
-                        // Only show the selected route
-                        if (!selectedRoute || route.id !== selectedRoute.id) return null;
-                        
-                        return (
-                            <React.Fragment key={route.id}>
-                                {/* Outer glow effect */}
-                                <Polyline
-                                    positions={route.path.map(p => [p.y, p.x])}
-                                    color={PATH_COLORS.highlightSecondary}
-                                    weight={12}
-                                    opacity={0.3}
-                                    lineCap="round"
-                                    lineJoin="round"
-                                />
-                                {/* Path casing (outer white border) */}
-                                <Polyline
-                                    positions={route.path.map(p => [p.y, p.x])}
-                                    color={PATH_COLORS.arrows}
-                                    weight={8}
-                                    opacity={1}
-                                    lineCap="round"
-                                    lineJoin="round"
-                                />
-                                {/* Main path */}
-                                <Polyline
-                                    positions={route.path.map(p => [p.y, p.x])}
-                                    color={PATH_COLORS.highlight}
-                                    weight={6}
-                                    opacity={1}
-                                    smoothFactor={1}
-                                    lineCap="round"
-                                    lineJoin="round"
-                                />
-                                {/* Animated arrows */}
-                                <Polyline
-                                    positions={route.path.map(p => [p.y, p.x])}
-                                    color={PATH_COLORS.arrows}
-                                    weight={2}
-                                    opacity={0.8}
-                                    dashArray="12, 24"
-                                    lineCap="round"
-                                    lineJoin="round"
-                                />
-                                {/* Add markers at start and end */}
-                                {route.from && (
-                                    <Marker
-                                        position={[
-                                            floorData[selectedFloor].objects.find(obj => obj.id === route.from)?.latlng[0],
-                                            floorData[selectedFloor].objects.find(obj => obj.id === route.from)?.latlng[1]
-                                        ]}
-                                        icon={L.divIcon({
-                                            className: '',
-                                            html: `<div style="
-                                                background: ${PATH_COLORS.highlight};
-                                                color: white;
-                                                border-radius: 50%;
-                                                width: 24px;
-                                                height: 24px;
-                                                transform: translate(-12px, -12px);
-                                                display: flex;
-                                                align-items: center;
-                                                justify-content: center;
-                                                border: 2px solid white;
-                                                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                                                font-weight: bold;
-                                            ">S</div>`
-                                        })}
-                                    />
-                                )}
-                                {route.to && (
-                                    <Marker
-                                        position={[
-                                            floorData[selectedFloor].objects.find(obj => obj.id === route.to)?.latlng[0],
-                                            floorData[selectedFloor].objects.find(obj => obj.id === route.to)?.latlng[1]
-                                        ]}
-                                        icon={L.divIcon({
-                                            className: '',
-                                            html: `<div style="
-                                                background: ${PATH_COLORS.highlight};
-                                                color: white;
-                                                border-radius: 50%;
-                                                width: 24px;
-                                                height: 24px;
-                                                transform: translate(-12px, -12px);
-                                                display: flex;
-                                                align-items: center;
-                                                justify-content: center;
-                                                border: 2px solid white;
-                                                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-                                                font-weight: bold;
-                                            ">E</div>`
-                                        })}
-                                    />
-                                )}
-                            </React.Fragment>
-                        );
-                    })}
+                {/* Render routes */}
+                {currentFloorData.routes.map((route) => {
+                    // Only show the selected route
+                    if (!selectedRoute || route.id !== selectedRoute.id) return null;
 
-                    {/* Control buttons */}
+                    // Validate route path points
+                    if (!route.path || !Array.isArray(route.path)) return null;
+
+                    const validPath = route.path.filter(point =>
+                        point &&
+                        typeof point.x === 'number' &&
+                        typeof point.y === 'number' &&
+                        !isNaN(point.x) &&
+                        !isNaN(point.y)
+                    );
+
+                    if (validPath.length === 0) return null;
+
+                    return renderRoute(route);
+                })}
+
+                {/* Control buttons */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: 20,
+                    left: 20,
+                    zIndex: 1000,
+                    display: 'flex',
+                    gap: 8
+                }}>
+                    {/* Return to builder button */}
                     <div style={{
-                        position: 'absolute',
-                        top: 20,
-                        left: 20,
-                        zIndex: 1000,
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        padding: '8px 16px',
+                        borderRadius: 20,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        cursor: 'pointer',
                         display: 'flex',
-                        gap: 8
-                    }}>
-                        {/* Return to builder button */}
-                        <div style={{
-                            background: 'white',
-                            padding: '8px 16px',
-                            borderRadius: 4,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8
-                        }}
-                            onClick={() => navigate('/builder')}
-                        >
-                            Return to Builder
-                        </div>
+                        alignItems: 'center',
+                        gap: 8,
+                        backdropFilter: 'blur(8px)',
+                        color: '#333',
+                        fontSize: 14,
+                        fontWeight: 500
+                    }}
+                        onClick={() => navigate('/builder')}
+                    >
+                        Return to Builder
+                    </div>
 
-                        {/* Route button */}
+                    {/* Route button */}
+                    <div style={{
+                        background: routeMode ? PATH_COLORS.highlight : 'rgba(255, 255, 255, 0.9)',
+                        padding: '8px 16px',
+                        borderRadius: 20,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        color: routeMode ? 'white' : '#333',
+                        fontSize: 14,
+                        fontWeight: 500,
+                        transition: 'all 0.2s ease',
+                        backdropFilter: 'blur(8px)'
+                    }}
+                        onClick={routeMode ? cancelRouteSelection : startRouteSelection}
+                    >
+                        <FaRoute />
+                        {routeMode ? (
+                            <span>
+                                {routeMode === 'from' ? 'Select Start Point' : 'Select End Point'}
+                            </span>
+                        ) : (
+                            <span>Find Route</span>
+                        )}
+                    </div>
+
+                    {/* Clear route button - only show when a route is selected */}
+                    {selectedRoute && (
                         <div style={{
-                            background: routeMode ? PATH_COLORS.highlight : 'white',
+                            background: 'rgba(255, 255, 255, 0.9)',
                             padding: '8px 16px',
-                            borderRadius: 4,
-                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            borderRadius: 20,
+                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             gap: 8,
-                            color: routeMode ? 'white' : 'black',
-                            transition: 'all 0.2s ease'
+                            backdropFilter: 'blur(8px)',
+                            color: '#333',
+                            fontSize: 14,
+                            fontWeight: 500
                         }}
-                            onClick={routeMode ? cancelRouteSelection : startRouteSelection}
+                            onClick={cancelRouteSelection}
                         >
-                            <FaRoute />
-                            {routeMode ? (
-                                <span>
-                                    {routeMode === 'from' ? 'Select Start Point' : 'Select End Point'}
-                                </span>
-                            ) : (
-                                <span>Find Route</span>
-                            )}
-                        </div>
-
-                        {/* Clear route button - only show when a route is selected */}
-                        {selectedRoute && (
-                            <div style={{
-                                background: 'white',
-                                padding: '8px 16px',
-                                borderRadius: 4,
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                cursor: 'pointer',
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: 8
-                            }}
-                                onClick={cancelRouteSelection}
-                            >
-                                Clear Route
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Route info popup - only show when a route is selected */}
-                    {selectedRoute && (
-                        <div style={{
-                            position: 'absolute',
-                            bottom: 20,
-                            left: '50%',
-                            transform: 'translateX(-50%)',
-                            background: 'white',
-                            padding: '12px 24px',
-                            borderRadius: 8,
-                            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                            zIndex: 1000,
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 16
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <div style={{
-                                    width: 12,
-                                    height: 12,
-                                    borderRadius: '50%',
-                                    background: PATH_COLORS.highlight,
-                                    border: '2px solid white',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                                }} />
-                                <span>Selected Route</span>
-                            </div>
-                            <div style={{ color: '#666' }}>
-                                {floorData[selectedFloor].objects.find(obj => obj.id === selectedRoute.from)?.name || 'Start'} 
-                                → 
-                                {floorData[selectedFloor].objects.find(obj => obj.id === selectedRoute.to)?.name || 'End'}
-                            </div>
+                            Clear Route
                         </div>
                     )}
-                </MapContainer>
-            )}
+                </div>
+
+                {/* Route info popup - only show when a route is selected */}
+                {selectedRoute && (
+                    <div style={{
+                        position: 'absolute',
+                        bottom: 20,
+                        left: '50%',
+                        transform: 'translateX(-50%)',
+                        background: 'rgba(255, 255, 255, 0.9)',
+                        padding: '8px 16px',
+                        borderRadius: 20,
+                        boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                        zIndex: 1000,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 16,
+                        backdropFilter: 'blur(8px)',
+                        color: '#333',
+                        fontSize: 14,
+                        fontWeight: 500
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{
+                                width: 8,
+                                height: 8,
+                                borderRadius: '50%',
+                                background: PATH_COLORS.highlight,
+                                border: '2px solid white',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }} />
+                            <span>Selected Route</span>
+                        </div>
+                        <div style={{ color: '#666' }}>
+                            {fromMarker?.name || 'Start'}
+                            →
+                            {toMarker?.name || 'End'}
+                        </div>
+                    </div>
+                )}
+            </MapContainer>
         </div>
     );
 };
-
-export default MapViewer2D; 
+ 

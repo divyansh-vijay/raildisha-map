@@ -18,7 +18,7 @@ import MapViewer2D from './MapViewer2D';
 import { FaMap, FaRoute, FaDrawPolygon, FaChevronLeft, FaChevronRight, FaUpload, FaDownload, FaMapMarkerAlt, FaUtensils, FaShoppingBag, FaBuilding, FaParking, FaInfoCircle, FaMarker, FaUser, FaStore, FaCoffee, FaBook, FaFirstAid, FaWheelchair, FaArrowUp, FaDoorOpen } from 'react-icons/fa';
 import { FaStairs } from "react-icons/fa6";
 import { SiBlockbench } from "react-icons/si";
-import { createFloor, createMarker, createPath, createBoundary } from "../src/services/api";
+import { saveMapData } from "../src/services/api";
 // Add these constants at the top with other constants
 const PATH_COLORS = {
     primary: '#fcd89a',    // Google Maps blue
@@ -191,30 +191,68 @@ export default function MapBuilder() {
     const [pathToMarker, setPathToMarker] = useState(null);
     const [pathCreationStep, setPathCreationStep] = useState(null);
     const [selectedMarker, setSelectedMarker] = useState(null);
-    const [showMarkerDetails, setShowMarkerDetails] = useState(false);
     const [showPathAnchors, setShowPathAnchors] = useState(false);
-    const [selectedAnchorPoint, setSelectedAnchorPoint] = useState(null);
-    const [isUploading, setIsUploading] = useState(false);
-    const [uploadStatus, setUploadStatus] = useState(null);
 
     // Define all callbacks at the top level
-    const handleSaveToLocalStorage = () => {
+    const handleSaveToLocalStorage = async () => {
         if (!floors || !floorData) {
             console.warn('No data to save');
             return;
         }
 
+        // Format data according to API requirements
+        const dataToSave = {
+            // name: "Raildisha Map",
+            // level: parseInt(selectedFloor.split('_')[1]),
+            // map_data: {
+            //     objects: floorData[selectedFloor].objects || [],
+            //     routes: floorData[selectedFloor].routes || [],
+            //     boundaries: floorData[selectedFloor].boundaries || [],
+            //     innerBoundaries: floorData[selectedFloor].innerBoundaries || []
+            // }
+            floors,
+            floorData,
+            selectedFloor
+        };
+
+        // Log the data we're sending
+        console.log('Saving data to API:', JSON.stringify(dataToSave, null, 2));
+
         try {
-            const dataToSave = {
+            // Save to API
+            const result = await saveMapData(dataToSave);
+
+            // Log the API response
+            console.log('API Response:', result);
+
+            if (result.success === false) {
+                console.error('Failed to save to API:', result.error);
+                // Still save to localStorage as backup
+                localStorage.setItem('rd_map_data', JSON.stringify({
+                    floors,
+                    floorData,
+                    selectedFloor
+                }));
+                alert('Failed to save to server. Data saved locally as backup.');
+            } else {
+                // Save to localStorage as backup
+                localStorage.setItem('rd_map_data', JSON.stringify({
+                    floors,
+                    floorData,
+                    selectedFloor
+                }));
+                setShowSaveToast(true);
+                setTimeout(() => setShowSaveToast(false), 2000);
+            }
+        } catch (error) {
+            console.error('Error saving data:', error);
+            // Save to localStorage as backup
+            localStorage.setItem('rd_map_data', JSON.stringify({
                 floors,
                 floorData,
                 selectedFloor
-            };
-            localStorage.setItem('rd_map_data', JSON.stringify(dataToSave));
-            setShowSaveToast(true);
-            setTimeout(() => setShowSaveToast(false), 2000);
-        } catch (error) {
-            console.error('Error saving to localStorage:', error);
+            }));
+            alert('Failed to save to server. Data saved locally as backup.');
         }
     };
 
@@ -285,19 +323,25 @@ export default function MapBuilder() {
         }
     }, [selectedFloor, floorData]);
 
-    // Auto-save effect
+    // Update auto-save effect
     useEffect(() => {
         if (!isLoading && floors && floorData) {
-            const saveData = () => {
+            const saveData = async () => {
                 try {
                     const dataToSave = {
                         floors,
                         floorData,
                         selectedFloor
                     };
+
+                    // Save to API
+                    await saveMapData(dataToSave);
+
+                    // Also save to localStorage as backup
                     localStorage.setItem('rd_map_data', JSON.stringify(dataToSave));
                 } catch (err) {
                     console.error('Error auto-saving:', err);
+                    // Don't show error alert since we're still saving to localStorage
                 }
             };
 
@@ -308,29 +352,40 @@ export default function MapBuilder() {
     // Initial data loading effect
     useEffect(() => {
         const loadData = () => {
+            console.log('Starting data load...');
             try {
                 const savedData = localStorage.getItem('rd_map_data');
+                console.log('Saved data from localStorage:', savedData);
+
                 if (savedData) {
                     const parsedData = JSON.parse(savedData);
+                    console.log('Parsed data:', parsedData);
+
                     if (parsedData.floors && parsedData.floorData) {
+                        console.log('Setting floors:', parsedData.floors);
+                        console.log('Setting floor data:', parsedData.floorData);
                         setFloors(parsedData.floors);
                         setFloorData(parsedData.floorData);
                         setSelectedFloor(parsedData.selectedFloor || parsedData.floors[0]?.id);
                     } else {
+                        console.log('Invalid data structure, initializing default data');
                         initializeDefaultData();
                     }
                 } else {
+                    console.log('No saved data found, initializing default data');
                     initializeDefaultData();
                 }
             } catch (err) {
                 console.error('Error loading data:', err);
                 initializeDefaultData();
             } finally {
+                console.log('Setting isLoading to false');
                 setIsLoading(false);
             }
         };
 
         const initializeDefaultData = () => {
+            console.log('Initializing default data');
             const defaultFloors = [{ id: 'floor_1', name: 'Floor 1' }];
             const defaultFloorData = {
                 'floor_1': {
@@ -373,15 +428,13 @@ export default function MapBuilder() {
     // Update handleSetDrawingMode to show/hide anchor points
     const handleSetDrawingMode = (mode) => {
         setDrawingMode(mode);
-        setShowPathAnchors(mode === 'polyline');
-
         // Reset path creation states when starting new path
         if (mode === 'polyline') {
             setPathFromMarker(null);
             setPathToMarker(null);
             setPathCreationStep('from');
             setCurrentMeasurement(null);
-            setSelectedAnchorPoint(null);
+            setShowPathAnchors(true);
         } else {
             setPathCreationStep(null);
             setShowPathAnchors(false);
@@ -429,7 +482,6 @@ export default function MapBuilder() {
             }
         } else {
             setSelectedMarker(marker);
-            setShowMarkerDetails(true);
         }
     };
 
@@ -965,65 +1017,6 @@ export default function MapBuilder() {
         });
     };
 
-    const handleUpload = async () => {
-        try {
-            setIsUploading(true);
-            setUploadStatus('Uploading floor data...');
-
-            // Extract floor number from selectedFloor (e.g., "floor_1" -> 1)
-            const floorNumber = parseInt(selectedFloor.replace('floor_', ''), 10);
-            if (isNaN(floorNumber)) {
-                throw new Error('Invalid floor number');
-            }
-
-            // Create floor with all map data
-            const uploadData = {
-                name: `Floor ${floorNumber}`,
-                level: floorNumber,
-                map_data: {
-                    objects: floorData[selectedFloor].objects.map(obj => ({
-                        id: obj.id,
-                        name: obj.name || 'Unnamed Marker',
-                        description: obj.description || '',
-                        position: { lat: obj.latlng[0], lng: obj.latlng[1] },
-                        type: obj.type || 'default'
-                    })),
-                    routes: floorData[selectedFloor].routes.map(route => ({
-                        id: route.id,
-                        name: route.name || 'Unnamed Path',
-                        description: route.description || '',
-                        points: route.path.map(point => ({ lat: point.y, lng: point.x })),
-                        type: route.type || 'default'
-                    })),
-                    boundaries: floorData[selectedFloor].boundaries.map(boundary => ({
-                        id: boundary.id,
-                        name: boundary.name || 'Unnamed Boundary',
-                        description: boundary.description || '',
-                        points: boundary.geometry.coordinates[0].map(point => ({ lat: point[1], lng: point[0] })),
-                        type: boundary.type || 'default'
-                    })),
-                    innerBoundaries: floorData[selectedFloor].innerBoundaries.map(boundary => ({
-                        id: boundary.id,
-                        name: boundary.properties?.name || 'Unnamed Inner Boundary',
-                        description: boundary.properties?.description || '',
-                        points: boundary.geometry.coordinates[0].map(point => ({ lat: point[1], lng: point[0] })),
-                        type: boundary.type || 'default',
-                        category: boundary.properties?.category || 'facility'
-                    }))
-                }
-            };
-
-            await createFloor(uploadData);
-            setUploadStatus('Upload complete!');
-            setTimeout(() => setUploadStatus(null), 3000);
-        } catch (error) {
-            console.error('Upload failed:', error);
-            setUploadStatus('Upload failed: ' + error.message);
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
     // Early return for loading state
     if (isLoading) {
         return (
@@ -1063,7 +1056,7 @@ export default function MapBuilder() {
 
     // Main render
     return (
-        <div style={{ 
+        <div style={{
             position: 'fixed',  // Change from relative to fixed
             top: 0,
             left: 0,
@@ -1262,40 +1255,6 @@ export default function MapBuilder() {
                         <button onClick={handleExportJSON} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Export JSON"><FaDownload />Export</button>
                         <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Import JSON"><FaUpload />Import</button>
                         <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleImportJSON} />
-                        <button 
-                            onClick={handleUpload} 
-                            disabled={isUploading}
-                            style={{ 
-                                background: isUploading ? '#ccc' : '#4caf50', 
-                                color: 'white', 
-                                border: 'none', 
-                                borderRadius: 4, 
-                                padding: '8px 0', 
-                                fontWeight: 500, 
-                                fontSize: 14,
-                                display: 'flex',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 6,
-                                cursor: isUploading ? 'not-allowed' : 'pointer'
-                            }} 
-                            title="Upload to Server"
-                        >
-                            <FaUpload />
-                            {isUploading ? 'Uploading...' : 'Upload to Server'}
-                        </button>
-                        {uploadStatus && (
-                            <div style={{ 
-                                background: 'white', 
-                                padding: '8px', 
-                                borderRadius: 4, 
-                                border: '1px solid #ddd',
-                                fontSize: 12,
-                                color: '#666'
-                            }}>
-                                {uploadStatus}
-                            </div>
-                        )}
                     </div>
                 )}
                 {showSaveToast && (
@@ -1323,7 +1282,7 @@ export default function MapBuilder() {
                 </div>
             )}
             {/* Add Marker Details Panel */}
-            {showMarkerDetails && selectedMarker && (
+            {selectedMarker && (
                 <div style={{
                     position: 'fixed',
                     top: '50%',
@@ -1339,7 +1298,7 @@ export default function MapBuilder() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                         <h3 style={{ margin: 0 }}>Marker Details</h3>
                         <button
-                            onClick={() => setShowMarkerDetails(false)}
+                            onClick={() => setSelectedMarker(null)}
                             style={{
                                 background: 'none',
                                 border: 'none',
@@ -1422,7 +1381,7 @@ export default function MapBuilder() {
                         <button
                             onClick={() => {
                                 handleDeleteMarker(selectedMarker.id);
-                                setShowMarkerDetails(false);
+                                setSelectedMarker(null);
                             }}
                             style={{
                                 padding: '8px 16px',
@@ -1436,7 +1395,7 @@ export default function MapBuilder() {
                             Delete
                         </button>
                         <button
-                            onClick={() => setShowMarkerDetails(false)}
+                            onClick={() => setSelectedMarker(null)}
                             style={{
                                 padding: '8px 16px',
                                 background: '#2196f3',
@@ -1452,7 +1411,7 @@ export default function MapBuilder() {
                 </div>
             )}
             {/* Main map area */}
-            <div style={{ 
+            <div style={{
                 position: 'fixed',  // Change from relative to fixed
                 top: 0,
                 left: sidebarCollapsed ? 48 : 260,
@@ -1584,7 +1543,7 @@ export default function MapBuilder() {
                             center={[26.4494, 80.1935]}
                             zoom={18}
                             maxZoom={30}
-                            style={{ 
+                            style={{
                                 height: '100%',  // Change from 100vh to 100%
                                 width: '100%',   // Change from 100vw to 100%
                                 position: 'absolute',

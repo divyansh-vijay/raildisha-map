@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, JSON, DateTime
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, JSON, DateTime
 from sqlalchemy.sql import func
 from src.database import Base
 from datetime import datetime
@@ -19,60 +18,30 @@ class Floor(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
-    # Relationships
-    markers = relationship("Marker", back_populates="floor")
-    paths = relationship("Path", back_populates="floor")
-    boundaries = relationship("Boundary", back_populates="floor")
-
     def to_dict(self):
         return {
-            "id": f"floor_{self.level}",
+            "id": self.id,
             "name": self.name,
             "level": self.level,
             "map_data": self.map_data
         }
 
-class Marker(Base):
-    __tablename__ = "markers"
+class MapData(Base):
+    __tablename__ = "map_data"
 
     id = Column(Integer, primary_key=True, index=True)
-    floor_id = Column(Integer, ForeignKey("floors.id"))
-    name = Column(String, nullable=False)
-    description = Column(String)
-    position = Column(JSON, nullable=False)  # {lat: float, lng: float}
-    type = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    data = Column(JSON, nullable=False, default={
+        "floors": [],
+        "floorData": {},
+        "selectedFloor": None
+    })
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
-    # Relationships
-    floor = relationship("Floor", back_populates="markers")
-
-class Path(Base):
-    __tablename__ = "paths"
-
-    id = Column(Integer, primary_key=True, index=True)
-    floor_id = Column(Integer, ForeignKey("floors.id"))
-    name = Column(String, nullable=False)
-    description = Column(String)
-    points = Column(JSON, nullable=False)  # Array of {lat: float, lng: float}
-    type = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    floor = relationship("Floor", back_populates="paths")
-
-class Boundary(Base):
-    __tablename__ = "boundaries"
-
-    id = Column(Integer, primary_key=True, index=True)
-    floor_id = Column(Integer, ForeignKey("floors.id"))
-    name = Column(String, nullable=False)
-    description = Column(String)
-    points = Column(JSON, nullable=False)  # Array of {lat: float, lng: float}
-    type = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # Relationships
-    floor = relationship("Floor", back_populates="boundaries") 
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "data": self.data,
+            "created_at": self.created_at,
+            "updated_at": self.updated_at
+        } 
