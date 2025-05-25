@@ -8,10 +8,16 @@ from datetime import datetime
 
 router = APIRouter()
 
+class MapData(BaseModel):
+    objects: List[dict] = []
+    routes: List[dict] = []
+    boundaries: List[dict] = []
+    innerBoundaries: List[dict] = []
+
 class FloorBase(BaseModel):
     name: str
     level: int
-    map_data: dict
+    map_data: MapData
 
 class FloorCreate(FloorBase):
     pass

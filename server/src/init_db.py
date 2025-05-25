@@ -1,45 +1,50 @@
 import os
 import sys
 import logging
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from dotenv import load_dotenv
 
-# Add the parent directory to Python path
+# Add the parent directory to the Python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from src.database import create_tables, Base, engine
-from src.models.base import Floor, Marker, Path, Boundary  # Import all models
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Load environment variables
+load_dotenv()
+
 def init_db():
+    # Get database URL from environment
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    if not DATABASE_URL:
+        raise ValueError("DATABASE_URL environment variable is not set")
+
+    # Create engine
+    engine = create_engine(DATABASE_URL)
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
     try:
-        # Drop all existing tables
+        # Drop existing tables
         logger.info("Dropping existing tables...")
-        Base.metadata.drop_all(bind=engine)
-        
-        # Create all tables
-        logger.info("Creating new tables...")
-        create_tables()
-        
-        # Verify tables were created
-        from sqlalchemy import inspect
-        inspector = inspect(engine)
-        tables = inspector.get_table_names()
-        
-        logger.info("Database initialization completed successfully!")
-        logger.info(f"Created tables: {', '.join(tables)}")
-        
-        # Show table structures
-        for table in tables:
-            logger.info(f"\nTable: {table}")
-            columns = inspector.get_columns(table)
-            for column in columns:
-                logger.info(f"  - {column['name']}: {column['type']}")
-                
+        session.execute(text("DROP TABLE IF EXISTS floors CASCADE"))
+        session.commit()
+
+        # Create tables
+        logger.info("Creating tables...")
+        from src.models.base import Base
+        Base.metadata.create_all(engine)
+        session.commit()
+
+        logger.info("Database initialized successfully!")
     except Exception as e:
-        logger.error(f"Error initializing database: {e}")
+        logger.error(f"Error initializing database: {str(e)}")
+        session.rollback()
         raise
+    finally:
+        session.close()
 
 if __name__ == "__main__":
     init_db() 

@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Float, ForeignKey, JSON, DateTim
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from src.database import Base
+from datetime import datetime
 
 class Floor(Base):
     __tablename__ = "floors"
@@ -9,14 +10,27 @@ class Floor(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, nullable=False)
     level = Column(Integer, nullable=False)
-    map_data = Column(JSON, nullable=False)  # Store all map data as JSON
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    map_data = Column(JSON, nullable=False, default={
+        "objects": [],
+        "routes": [],
+        "boundaries": [],
+        "innerBoundaries": []
+    })
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, onupdate=datetime.utcnow)
 
     # Relationships
     markers = relationship("Marker", back_populates="floor")
     paths = relationship("Path", back_populates="floor")
     boundaries = relationship("Boundary", back_populates="floor")
+
+    def to_dict(self):
+        return {
+            "id": f"floor_{self.level}",
+            "name": self.name,
+            "level": self.level,
+            "map_data": self.map_data
+        }
 
 class Marker(Base):
     __tablename__ = "markers"
