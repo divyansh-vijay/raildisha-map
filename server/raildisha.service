@@ -6,7 +6,8 @@ After=network.target postgresql.service
 User=ubuntu
 WorkingDirectory=/home/ubuntu/raildisha-map/server
 Environment="PATH=/home/ubuntu/raildisha-map/server/venv/bin"
-ExecStart=/home/ubuntu/raildisha-map/server/venv/bin/python src/main.py
+Environment="PYTHONPATH=/home/ubuntu/raildisha-map/server"
+ExecStart=/home/ubuntu/raildisha-map/server/venv/bin/python -m src.main
 Restart=always
 RestartSec=3
 

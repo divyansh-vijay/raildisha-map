@@ -1,13 +1,30 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+from src.database import get_db
+from src.models.base import Floor
 from typing import List
-from ..database import get_db
-from ..models.base import Floor
-from ..schemas.base import FloorCreate, Floor as FloorSchema
+from pydantic import BaseModel
+from datetime import datetime
 
 router = APIRouter()
 
-@router.post("/", response_model=FloorSchema)
+class FloorBase(BaseModel):
+    name: str
+    level: int
+    map_data: dict
+
+class FloorCreate(FloorBase):
+    pass
+
+class FloorResponse(FloorBase):
+    id: int
+    created_at: datetime
+    updated_at: datetime | None = None
+
+    class Config:
+        from_attributes = True
+
+@router.post("/", response_model=FloorResponse)
 def create_floor(floor: FloorCreate, db: Session = Depends(get_db)):
     db_floor = Floor(**floor.model_dump())
     db.add(db_floor)
@@ -15,19 +32,18 @@ def create_floor(floor: FloorCreate, db: Session = Depends(get_db)):
     db.refresh(db_floor)
     return db_floor
 
-@router.get("/", response_model=List[FloorSchema])
-def get_floors(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    floors = db.query(Floor).offset(skip).limit(limit).all()
-    return floors
+@router.get("/", response_model=List[FloorResponse])
+def get_floors(db: Session = Depends(get_db)):
+    return db.query(Floor).all()
 
-@router.get("/{floor_id}", response_model=FloorSchema)
+@router.get("/{floor_id}", response_model=FloorResponse)
 def get_floor(floor_id: int, db: Session = Depends(get_db)):
     floor = db.query(Floor).filter(Floor.id == floor_id).first()
     if floor is None:
         raise HTTPException(status_code=404, detail="Floor not found")
     return floor
 
-@router.put("/{floor_id}", response_model=FloorSchema)
+@router.put("/{floor_id}", response_model=FloorResponse)
 def update_floor(floor_id: int, floor: FloorCreate, db: Session = Depends(get_db)):
     db_floor = db.query(Floor).filter(Floor.id == floor_id).first()
     if db_floor is None:

@@ -1,7 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes import maps
+from src.routes import maps, markers, paths, boundaries
 import os
 from dotenv import load_dotenv
 
@@ -25,9 +25,7 @@ app.add_middleware(
 async def health_check():
     return {"status": "ok"}
 
-# Import and include routers
-from .routes import markers, paths, boundaries
-
+# Include routers
 app.include_router(maps.router, prefix="/api/maps", tags=["maps"])
 app.include_router(markers.router, prefix="/api/markers", tags=["markers"])
 app.include_router(paths.router, prefix="/api/paths", tags=["paths"])
