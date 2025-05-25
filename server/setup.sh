@@ -19,6 +19,11 @@ sudo -u postgres psql -c "CREATE USER raildisha WITH PASSWORD 'raildisha123';"
 sudo -u postgres psql -c "CREATE DATABASE raildisha;"
 sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE raildisha TO raildisha;"
 
+# Grant schema privileges
+sudo -u postgres psql -d raildisha -c "GRANT ALL ON SCHEMA public TO raildisha;"
+sudo -u postgres psql -d raildisha -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO raildisha;"
+sudo -u postgres psql -d raildisha -c "ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO raildisha;"
+
 # Create a virtual environment
 python3 -m venv venv
 source venv/bin/activate
@@ -38,6 +43,7 @@ DB_PASSWORD=raildisha123
 # Server Configuration
 PORT=8000
 HOST=0.0.0.0
+NODE_ENV=development
 EOL
 
 # Initialize the database
