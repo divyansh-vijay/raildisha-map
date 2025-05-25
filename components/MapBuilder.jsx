@@ -18,6 +18,7 @@ import MapViewer2D from './MapViewer2D';
 import { FaMap, FaRoute, FaDrawPolygon, FaChevronLeft, FaChevronRight, FaUpload, FaDownload, FaMapMarkerAlt, FaUtensils, FaShoppingBag, FaBuilding, FaParking, FaInfoCircle, FaMarker, FaUser, FaStore, FaCoffee, FaBook, FaFirstAid, FaWheelchair, FaArrowUp, FaDoorOpen } from 'react-icons/fa';
 import { FaStairs } from "react-icons/fa6";
 import { SiBlockbench } from "react-icons/si";
+import { createFloor, createMarker, createPath, createBoundary } from "../src/services/api";
 // Add these constants at the top with other constants
 const PATH_COLORS = {
     primary: '#fcd89a',    // Google Maps blue
@@ -191,6 +192,10 @@ export default function MapBuilder() {
     const [pathCreationStep, setPathCreationStep] = useState(null);
     const [selectedMarker, setSelectedMarker] = useState(null);
     const [showMarkerDetails, setShowMarkerDetails] = useState(false);
+    const [showPathAnchors, setShowPathAnchors] = useState(false);
+    const [selectedAnchorPoint, setSelectedAnchorPoint] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [uploadStatus, setUploadStatus] = useState(null);
 
     // Define all callbacks at the top level
     const handleSaveToLocalStorage = () => {
@@ -343,9 +348,32 @@ export default function MapBuilder() {
         loadData();
     }, []); // Only run on component mount
 
-    // Update handleSetDrawingMode
+    // Add this new function to handle anchor point clicks
+    const handleAnchorPointClick = (point, routeId, pointIndex) => {
+        if (drawingMode === 'polyline') {
+            if (pathCreationStep === 'from') {
+                setPathFromMarker({ id: `anchor_${routeId}_${pointIndex}`, type: 'anchor', latlng: [point.y, point.x] });
+                setPathCreationStep('to');
+                setCurrentMeasurement(`Selected start point: Anchor point ${pointIndex + 1}`);
+            } else if (pathCreationStep === 'to') {
+                setPathToMarker({ id: `anchor_${routeId}_${pointIndex}`, type: 'anchor', latlng: [point.y, point.x] });
+                setPathCreationStep('draw');
+                setCurrentMeasurement(`Selected end point: Anchor point ${pointIndex + 1}. Now draw the path.`);
+                // Enable polyline drawing
+                if (drawControlRef.current) {
+                    const drawControl = drawControlRef.current.leafletElement;
+                    if (drawControl) {
+                        drawControl._toolbars.draw._modes.polyline.handler.enable();
+                    }
+                }
+            }
+        }
+    };
+
+    // Update handleSetDrawingMode to show/hide anchor points
     const handleSetDrawingMode = (mode) => {
         setDrawingMode(mode);
+        setShowPathAnchors(mode === 'polyline');
 
         // Reset path creation states when starting new path
         if (mode === 'polyline') {
@@ -353,8 +381,10 @@ export default function MapBuilder() {
             setPathToMarker(null);
             setPathCreationStep('from');
             setCurrentMeasurement(null);
+            setSelectedAnchorPoint(null);
         } else {
             setPathCreationStep(null);
+            setShowPathAnchors(false);
         }
 
         // If switching to a new drawing mode, enable the appropriate draw control
@@ -935,6 +965,57 @@ export default function MapBuilder() {
         });
     };
 
+    const handleUpload = async () => {
+        try {
+            setIsUploading(true);
+            setUploadStatus('Uploading floor data...');
+
+            // Extract floor number from selectedFloor (e.g., "floor_1" -> 1)
+            const floorNumber = parseInt(selectedFloor.replace('floor_', ''), 10);
+            if (isNaN(floorNumber)) {
+                throw new Error('Invalid floor number');
+            }
+
+            // Create floor with all map data
+            const uploadData = {
+                name: `Floor ${floorNumber}`,
+                level: floorNumber,
+                map_data: {
+                    objects: floorData[selectedFloor].objects.map(obj => ({
+                        id: obj.id,
+                        name: obj.name || 'Unnamed Marker',
+                        description: obj.description || '',
+                        position: { lat: obj.latlng[0], lng: obj.latlng[1] },
+                        type: obj.type || 'default'
+                    })),
+                    routes: floorData[selectedFloor].routes.map(route => ({
+                        id: route.id,
+                        name: route.name || 'Unnamed Path',
+                        description: route.description || '',
+                        points: route.path.map(point => ({ lat: point.y, lng: point.x })),
+                        type: route.type || 'default'
+                    })),
+                    boundaries: floorData[selectedFloor].boundaries.map(boundary => ({
+                        id: boundary.id,
+                        name: boundary.name || 'Unnamed Boundary',
+                        description: boundary.description || '',
+                        points: boundary.geometry.coordinates[0].map(point => ({ lat: point[1], lng: point[0] })),
+                        type: boundary.type || 'default'
+                    }))
+                }
+            };
+
+            await createFloor(uploadData);
+            setUploadStatus('Upload complete!');
+            setTimeout(() => setUploadStatus(null), 3000);
+        } catch (error) {
+            console.error('Upload failed:', error);
+            setUploadStatus('Upload failed: ' + error.message);
+        } finally {
+            setIsUploading(false);
+        }
+    };
+
     // Early return for loading state
     if (isLoading) {
         return (
@@ -1173,6 +1254,40 @@ export default function MapBuilder() {
                         <button onClick={handleExportJSON} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Export JSON"><FaDownload />Export</button>
                         <button onClick={() => fileInputRef.current && fileInputRef.current.click()} style={{ background: '#fff', color: '#4285F4', border: '1px solid #4285F4', borderRadius: 4, padding: '8px 0', fontWeight: 500, fontSize: 14, display: 'flex', alignItems: 'center', gap: 6 }} title="Import JSON"><FaUpload />Import</button>
                         <input ref={fileInputRef} type="file" accept="application/json" style={{ display: 'none' }} onChange={handleImportJSON} />
+                        <button 
+                            onClick={handleUpload} 
+                            disabled={isUploading}
+                            style={{ 
+                                background: isUploading ? '#ccc' : '#4caf50', 
+                                color: 'white', 
+                                border: 'none', 
+                                borderRadius: 4, 
+                                padding: '8px 0', 
+                                fontWeight: 500, 
+                                fontSize: 14,
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: 6,
+                                cursor: isUploading ? 'not-allowed' : 'pointer'
+                            }} 
+                            title="Upload to Server"
+                        >
+                            <FaUpload />
+                            {isUploading ? 'Uploading...' : 'Upload to Server'}
+                        </button>
+                        {uploadStatus && (
+                            <div style={{ 
+                                background: 'white', 
+                                padding: '8px', 
+                                borderRadius: 4, 
+                                border: '1px solid #ddd',
+                                fontSize: 12,
+                                color: '#666'
+                            }}>
+                                {uploadStatus}
+                            </div>
+                        )}
                     </div>
                 )}
                 {showSaveToast && (
@@ -1574,22 +1689,40 @@ export default function MapBuilder() {
 
                                 {/* Add existing routes */}
                                 {floorData[selectedFloor]?.routes?.map((route) => (
-                                    <Polyline
-                                        key={route.id}
-                                        positions={route.path.map(p => [p.y, p.x])}
-                                        color={PATH_COLORS.primary}
-                                        weight={6}
-                                        opacity={1}
-                                        smoothFactor={1}
-                                        lineCap="round"
-                                        lineJoin="round"
-                                        options={{
-                                            id: route.id,
-                                            options: {
-                                                id: route.id
-                                            }
-                                        }}
-                                    />
+                                    <React.Fragment key={route.id}>
+                                        <Polyline
+                                            positions={route.path.map(p => [p.y, p.x])}
+                                            color={PATH_COLORS.primary}
+                                            weight={6}
+                                            opacity={1}
+                                            smoothFactor={1}
+                                            lineCap="round"
+                                            lineJoin="round"
+                                            options={{
+                                                id: route.id,
+                                                options: {
+                                                    id: route.id
+                                                }
+                                            }}
+                                        />
+                                        {/* Add anchor points when in path creation mode */}
+                                        {showPathAnchors && route.path.map((point, index) => (
+                                            <CircleMarker
+                                                key={`${route.id}_${index}`}
+                                                center={[point.y, point.x]}
+                                                radius={6}
+                                                pathOptions={{
+                                                    color: '#1976d2',
+                                                    fillColor: '#fff',
+                                                    fillOpacity: 1,
+                                                    weight: 2
+                                                }}
+                                                eventHandlers={{
+                                                    click: () => handleAnchorPointClick(point, route.id, index)
+                                                }}
+                                            />
+                                        ))}
+                                    </React.Fragment>
                                 ))}
 
                                 {/* EditControl */}

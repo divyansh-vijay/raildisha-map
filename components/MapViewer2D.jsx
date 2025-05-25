@@ -5,6 +5,7 @@ import L from 'leaflet';
 import { FaMarker, FaStore, FaDoorOpen, FaInfoCircle, FaRoute } from 'react-icons/fa';
 import { FaElevator, FaStairs } from 'react-icons/fa6';
 import { FaUtensils } from 'react-icons/fa';
+import { getFloors } from '../src/services/api';
 
 // Constants
 const MARKER_TYPES = {
@@ -58,27 +59,77 @@ const MapViewer2D = () => {
     const [floorData, setFloorData] = useState(null);
     const [selectedFloor, setSelectedFloor] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
-    const [routeMode, setRouteMode] = useState(null); // 'from', 'to', or null
+    const [routeMode, setRouteMode] = useState(null);
     const [selectedRoute, setSelectedRoute] = useState(null);
     const [fromMarker, setFromMarker] = useState(null);
     const [toMarker, setToMarker] = useState(null);
+    const [error, setError] = useState(null);
 
-    // Load data from localStorage when component mounts
+    // Load data from localStorage or server when component mounts
     useEffect(() => {
-        try {
-            const savedData = localStorage.getItem('rd_map_data');
-            if (savedData) {
-                const parsedData = JSON.parse(savedData);
-                if (parsedData.floorData && parsedData.selectedFloor) {
-                    setFloorData(parsedData.floorData);
-                    setSelectedFloor(parsedData.selectedFloor);
+        const loadData = async () => {
+            try {
+                // First try to load from localStorage
+                const savedData = localStorage.getItem('rd_map_data');
+                if (savedData) {
+                    const parsedData = JSON.parse(savedData);
+                    if (parsedData.floorData && parsedData.selectedFloor) {
+                        setFloorData(parsedData.floorData);
+                        setSelectedFloor(parsedData.selectedFloor);
+                        setIsLoading(false);
+                        return;
+                    }
                 }
+
+                // If no data in localStorage, load from server
+                const floors = await getFloors();
+                if (floors && floors.length > 0) {
+                    // Convert server data to the format expected by the component
+                    const serverFloorData = {};
+                    for (const floor of floors) {
+                        const mapData = floor.map_data || {};
+                        serverFloorData[`floor_${floor.level}`] = {
+                            objects: (mapData.objects || []).map(obj => ({
+                                id: obj.id,
+                                name: obj.name,
+                                type: obj.type,
+                                description: obj.description,
+                                latlng: [obj.position.lat, obj.position.lng]
+                            })),
+                            routes: (mapData.routes || []).map(route => ({
+                                id: route.id,
+                                name: route.name,
+                                type: route.type,
+                                description: route.description,
+                                path: route.points.map(point => ({ x: point.lng, y: point.lat }))
+                            })),
+                            boundaries: (mapData.boundaries || []).map(boundary => ({
+                                id: boundary.id,
+                                name: boundary.name,
+                                type: boundary.type,
+                                description: boundary.description,
+                                geometry: {
+                                    type: 'Polygon',
+                                    coordinates: [boundary.points.map(point => [point.lng, point.lat])]
+                                }
+                            }))
+                        };
+                    }
+
+                    setFloorData(serverFloorData);
+                    setSelectedFloor(`floor_${floors[0].level}`);
+                } else {
+                    setError('No map data available');
+                }
+            } catch (error) {
+                console.error('Error loading data:', error);
+                setError('Failed to load map data');
+            } finally {
+                setIsLoading(false);
             }
-        } catch (error) {
-            console.error('Error loading data from localStorage:', error);
-        } finally {
-            setIsLoading(false);
-        }
+        };
+
+        loadData();
     }, []);
 
     // Early return for loading state
@@ -90,8 +141,8 @@ const MapViewer2D = () => {
         );
     }
 
-    // Early return if no data
-    if (!floorData || !selectedFloor || !floorData[selectedFloor]) {
+    // Early return for error state
+    if (error) {
         return (
             <div style={{ 
                 position: 'fixed',
@@ -110,7 +161,7 @@ const MapViewer2D = () => {
                     height: '100%', 
                     background: '#f7f7fa' 
                 }}>
-                    <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>No map data available</div>
+                    <div style={{ fontSize: 22, color: '#888', marginBottom: 24 }}>{error}</div>
                     <button
                         onClick={() => navigate('/builder')}
                         style={{ 

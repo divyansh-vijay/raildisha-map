@@ -41,6 +41,7 @@ HOST=0.0.0.0
 EOL
 
 # Initialize the database
-python3 src/init_db.py
+cd "$(dirname "$0")"  # Ensure we're in the server directory
+python3 -m src.init_db
 
 echo "Setup complete! You can now start the server with: python3 src/main.py" 
