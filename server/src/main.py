@@ -1,8 +1,16 @@
+import os
+import sys
+from pathlib import Path
+
+# Add the parent directory to Python path when running directly
+if __name__ == "__main__":
+    parent_dir = str(Path(__file__).parent.parent)
+    sys.path.append(parent_dir)
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from src.routes import maps, markers, paths, boundaries
-import os
 from dotenv import load_dotenv
 
 # Load environment variables
