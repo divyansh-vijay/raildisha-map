@@ -82,20 +82,24 @@ export default function MapViewer2D() {
                     
                     // Transform the API response into the expected format
                     data = {
-                        floors: [{
-                            id: `floor_${apiResponse.level}`,
-                            name: apiResponse.name || `Floor ${apiResponse.level}`,
-                            level: apiResponse.level
-                        }],
-                        floorData: {
-                            [`floor_${apiResponse.level}`]: {
-                                objects: apiResponse.map_data.objects || [],
-                                routes: apiResponse.map_data.routes || [],
-                                boundaries: apiResponse.map_data.boundaries || [],
-                                innerBoundaries: apiResponse.map_data.innerBoundaries || []
-                            }
-                        },
-                        selectedFloor: `floor_${apiResponse.level}`
+                        floors: (apiResponse.floors || []).map((floor, index) => ({
+                            id: floor.level ? `floor_${floor.level}` : `floor_${index + 1}`,
+                            name: floor.name || `Floor ${floor.level || index + 1}`,
+                            level: floor.level || index + 1
+                        })),
+                        floorData: Object.fromEntries(
+                            Object.entries(apiResponse.floorData || {}).map(([key, value]) => [
+                                key,
+                                {
+                                    objects: value.objects || [],
+                                    routes: value.routes || [],
+                                    boundaries: value.boundaries || [],
+                                    innerBoundaries: value.innerBoundaries || []
+                                }
+                            ])
+                        ),
+                        selectedFloor: apiResponse.selectedFloor || (apiResponse.floors?.[0] ? 
+                            (apiResponse.floors[0].level ? `floor_${apiResponse.floors[0].level}` : 'floor_1') : null)
                     };
                     
                     console.log('Transformed data:', data);
@@ -127,34 +131,37 @@ export default function MapViewer2D() {
                         }
                     }
                 }
-                
-                if (!data || !data.floors || !data.floorData) {
-                    console.error('Invalid data structure received:', data);
-                    setError('Invalid data structure received from server');
-                    return;
+
+                // Initialize with empty data if none available
+                if (!data) {
+                    data = {
+                        floors: [],
+                        floorData: {},
+                        selectedFloor: null
+                    };
                 }
 
                 // Ensure floors are properly formatted
-                const formattedFloors = data.floors.map(floor => ({
-                    id: floor.id || `floor_${floor.level}`,
-                    name: floor.name || `Floor ${floor.level}`,
-                    level: floor.level
+                const formattedFloors = (data.floors || []).map((floor, index) => ({
+                    id: floor.id || (floor.level ? `floor_${floor.level}` : `floor_${index + 1}`),
+                    name: floor.name || `Floor ${floor.level || index + 1}`,
+                    level: floor.level || index + 1
                 }));
 
                 console.log('Formatted floors:', formattedFloors);
 
                 setFloors(formattedFloors);
-                setFloorData(data.floorData);
+                setFloorData(data.floorData || {});
                 
                 // Set initial selected floor
-                if (data.selectedFloor) {
+                if (data.selectedFloor && data.floorData[data.selectedFloor]) {
                     console.log('Setting selected floor from data:', data.selectedFloor);
                     setSelectedFloor(data.selectedFloor);
                 } else if (formattedFloors.length > 0) {
                     console.log('Setting first floor as selected:', formattedFloors[0].id);
                     setSelectedFloor(formattedFloors[0].id);
                 } else {
-                    console.error('No floors available to select');
+                    setSelectedFloor(null);
                 }
             } catch (err) {
                 console.error('Error loading data:', err);
@@ -175,11 +182,8 @@ export default function MapViewer2D() {
         return <div>Error: {error}</div>;
     }
 
-    if (!floorData || !selectedFloor || !floorData[selectedFloor]) {
-        return <div>No map data available</div>;
-    }
-
-    const currentFloorData = floorData[selectedFloor];
+    // Get current floor data or empty object if not available
+    const currentFloorData = selectedFloor && floorData ? (floorData[selectedFloor] || {}) : {};
 
     const handleMarkerClick = (marker) => {
         console.log('Marker clicked:', marker);
@@ -323,56 +327,58 @@ Total available routes: ${currentFloorData.routes.length}`);
             background: '#f7f7fa',
             overflow: 'hidden'
         }}>
-            {/* Floor selector */}
-            <div style={{
-                position: 'absolute',
-                bottom: 100,
-                left: '50%',
-                transform: 'translateX(-50%)',
-                zIndex: 1000,
-                background: 'rgba(255, 255, 255, 0.9)',
-                padding: '6px 12px',
-                borderRadius: 20,
-                boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-                backdropFilter: 'blur(8px)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8
-            }}>
-                <select
-                    value={selectedFloor}
-                    onChange={(e) => handleFloorChange(e.target.value)}
-                    style={{
-                        padding: '4px 8px',
-                        borderRadius: 16,
-                        border: '1px solid rgba(0,0,0,0.1)',
-                        background: 'transparent',
-                        color: '#333',
-                        fontSize: 14,
-                        fontWeight: 500,
-                        cursor: 'pointer',
-                        outline: 'none',
-                        appearance: 'none',
-                        paddingRight: 24
-                    }}
-                >
-                    {floors.map(floor => (
-                        <option key={floor.id} value={floor.id}>
-                            {`Floor ${floor.level}`}
-                        </option>
-                    ))}
-                </select>
+            {/* Floor selector - only show if there are floors */}
+            {floors.length > 0 && (
                 <div style={{
                     position: 'absolute',
-                    right: 12,
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    pointerEvents: 'none',
-                    color: '#666'
+                    bottom: 100,
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    zIndex: 1000,
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    padding: '6px 12px',
+                    borderRadius: 20,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    backdropFilter: 'blur(8px)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8
                 }}>
-                    ▼
+                    <select
+                        value={selectedFloor || ''}
+                        onChange={(e) => handleFloorChange(e.target.value)}
+                        style={{
+                            padding: '4px 8px',
+                            borderRadius: 16,
+                            border: '1px solid rgba(0,0,0,0.1)',
+                            background: 'transparent',
+                            color: '#333',
+                            fontSize: 14,
+                            fontWeight: 500,
+                            cursor: 'pointer',
+                            outline: 'none',
+                            appearance: 'none',
+                            paddingRight: 24
+                        }}
+                    >
+                        {floors.map(floor => (
+                            <option key={floor.id} value={floor.id}>
+                                {`Floor ${floor.level}`}
+                            </option>
+                        ))}
+                    </select>
+                    <div style={{
+                        position: 'absolute',
+                        right: 12,
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        pointerEvents: 'none',
+                        color: '#666'
+                    }}>
+                        ▼
+                    </div>
                 </div>
-            </div>
+            )}
 
             <MapContainer
                 center={[26.4494, 80.1935]}

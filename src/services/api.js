@@ -203,7 +203,15 @@ export const getMapData = async () => {
         if (!response.ok) {
             throw new Error('Failed to fetch map data');
         }
-        return await response.json();
+        const data = await response.json();
+        console.log('Received map data:', data);
+        
+        // Ensure data has the expected structure
+        if (!data || typeof data !== 'object') {
+            throw new Error('Invalid data structure received from server');
+        }
+        
+        return data;
     } catch (error) {
         console.error('Error fetching map data:', error);
         throw error;
