@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from src.database import get_db
 from src.models.base import Floor
-from typing import List
+from typing import List, Dict
 from pydantic import BaseModel
 from datetime import datetime
 
@@ -40,7 +40,8 @@ def create_floor(floor: FloorCreate, db: Session = Depends(get_db)):
 
 @router.get("/", response_model=List[FloorResponse])
 def get_floors(db: Session = Depends(get_db)):
-    return db.query(Floor).all()
+    floors = db.query(Floor).all()
+    return floors
 
 @router.get("/{floor_id}", response_model=FloorResponse)
 def get_floor(floor_id: int, db: Session = Depends(get_db)):

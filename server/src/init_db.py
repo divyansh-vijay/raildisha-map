@@ -38,6 +38,24 @@ def init_db():
         Base.metadata.create_all(engine)
         session.commit()
 
+        # Create initial floor if none exists
+        from src.models.base import Floor
+        if not session.query(Floor).first():
+            logger.info("Creating initial floor...")
+            initial_floor = Floor(
+                name="Ground Floor",
+                level=1,
+                map_data={
+                    "objects": [],
+                    "routes": [],
+                    "boundaries": [],
+                    "innerBoundaries": []
+                }
+            )
+            session.add(initial_floor)
+            session.commit()
+            logger.info("Initial floor created successfully!")
+
         logger.info("Database initialized successfully!")
     except Exception as e:
         logger.error(f"Error initializing database: {str(e)}")
