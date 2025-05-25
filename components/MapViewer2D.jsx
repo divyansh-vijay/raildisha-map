@@ -64,68 +64,41 @@ const MapViewer2D = () => {
     const [fromMarker, setFromMarker] = useState(null);
     const [toMarker, setToMarker] = useState(null);
     const [error, setError] = useState(null);
+    const [objects, setObjects] = useState([]);
+    const [routes, setRoutes] = useState([]);
+    const [boundaries, setBoundaries] = useState([]);
+    const [innerBoundaries, setInnerBoundaries] = useState([]);
 
     // Load data from localStorage or server when component mounts
     useEffect(() => {
         const loadData = async () => {
             try {
-                // First try to load from localStorage
-                const savedData = localStorage.getItem('rd_map_data');
+                // Try to load from localStorage first
+                const savedData = localStorage.getItem('mapData');
                 if (savedData) {
                     const parsedData = JSON.parse(savedData);
-                    if (parsedData.floorData && parsedData.selectedFloor) {
-                        setFloorData(parsedData.floorData);
-                        setSelectedFloor(parsedData.selectedFloor);
-                        setIsLoading(false);
-                        return;
-                    }
+                    setObjects(parsedData.objects || []);
+                    setRoutes(parsedData.routes || []);
+                    setBoundaries(parsedData.boundaries || []);
+                    setInnerBoundaries(parsedData.innerBoundaries || []);
+                    return;
                 }
 
-                // If no data in localStorage, load from server
-                const floors = await getFloors();
-                if (floors && floors.length > 0) {
-                    // Convert server data to the format expected by the component
-                    const serverFloorData = {};
-                    for (const floor of floors) {
-                        const mapData = floor.map_data || {};
-                        serverFloorData[`floor_${floor.level}`] = {
-                            objects: (mapData.objects || []).map(obj => ({
-                                id: obj.id,
-                                name: obj.name,
-                                type: obj.type,
-                                description: obj.description,
-                                latlng: [obj.position.lat, obj.position.lng]
-                            })),
-                            routes: (mapData.routes || []).map(route => ({
-                                id: route.id,
-                                name: route.name,
-                                type: route.type,
-                                description: route.description,
-                                path: route.points.map(point => ({ x: point.lng, y: point.lat }))
-                            })),
-                            boundaries: (mapData.boundaries || []).map(boundary => ({
-                                id: boundary.id,
-                                name: boundary.name,
-                                type: boundary.type,
-                                description: boundary.description,
-                                geometry: {
-                                    type: 'Polygon',
-                                    coordinates: [boundary.points.map(point => [point.lng, point.lat])]
-                                }
-                            }))
-                        };
-                    }
-
-                    setFloorData(serverFloorData);
-                    setSelectedFloor(`floor_${floors[0].level}`);
+                // If no localStorage data, fetch from server
+                const response = await getFloors();
+                if (response && response.length > 0) {
+                    // Get the first floor's data
+                    const floorData = response[0].map_data;
+                    setObjects(floorData.objects || []);
+                    setRoutes(floorData.routes || []);
+                    setBoundaries(floorData.boundaries || []);
+                    setInnerBoundaries(floorData.innerBoundaries || []);
                 } else {
                     setError('No map data available');
                 }
-            } catch (error) {
-                console.error('Error loading data:', error);
+            } catch (err) {
+                console.error('Error loading map data:', err);
                 setError('Failed to load map data');
-            } finally {
-                setIsLoading(false);
             }
         };
 

@@ -1001,6 +1001,14 @@ export default function MapBuilder() {
                         description: boundary.description || '',
                         points: boundary.geometry.coordinates[0].map(point => ({ lat: point[1], lng: point[0] })),
                         type: boundary.type || 'default'
+                    })),
+                    innerBoundaries: floorData[selectedFloor].innerBoundaries.map(boundary => ({
+                        id: boundary.id,
+                        name: boundary.properties?.name || 'Unnamed Inner Boundary',
+                        description: boundary.properties?.description || '',
+                        points: boundary.geometry.coordinates[0].map(point => ({ lat: point[1], lng: point[0] })),
+                        type: boundary.type || 'default',
+                        category: boundary.properties?.category || 'facility'
                     }))
                 }
             };
