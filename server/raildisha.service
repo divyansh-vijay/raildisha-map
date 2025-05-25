@@ -1,0 +1,14 @@
+[Unit]
+Description=RailDisha Map Backend
+After=network.target postgresql.service
+
+[Service]
+User=ubuntu
+WorkingDirectory=/home/ubuntu/raildisha-map/server
+Environment="PATH=/home/ubuntu/raildisha-map/server/venv/bin"
+ExecStart=/home/ubuntu/raildisha-map/server/venv/bin/python src/main.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target 
