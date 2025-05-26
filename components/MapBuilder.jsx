@@ -1442,7 +1442,7 @@ export default function MapBuilder() {
                                 gap: 8,
                                 pointerEvents: 'auto',
                                 minWidth: 320,
-                                maxWidth: 600,
+                                maxWidth: 1000,
                                 margin: '0 auto',
                             }}>
                                 <span style={{ marginRight: 8 }}>Floor:</span>

@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { MapContainer, TileLayer, Marker, Polygon, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
-import { FaMarker, FaStore, FaDoorOpen, FaInfoCircle, FaRoute } from 'react-icons/fa';
+import { FaMarker, FaStore, FaDoorOpen, FaInfoCircle, FaRoute, FaMap } from 'react-icons/fa';
 import { FaElevator, FaStairs } from 'react-icons/fa6';
 import { FaUtensils } from 'react-icons/fa';
 import { getMapData } from '../src/services/api';
@@ -65,6 +65,7 @@ export default function MapViewer2D() {
     const [fromMarker, setFromMarker] = useState(null);
     const [toMarker, setToMarker] = useState(null);
     const [error, setError] = useState(null);
+    const [mapType, setMapType] = useState('normal');
 
     useEffect(() => {
         const loadData = async () => {
@@ -403,10 +404,12 @@ Total available routes: ${currentFloorData.routes.length}`);
                 }}
             >
                 <TileLayer
-                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    url={mapType === 'normal'
+                        ? 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
+                        : 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'}
                     maxZoom={20}
                     maxNativeZoom={19}
-                    attribution="&copy; OSM contributors"
+                    attribution={mapType === 'normal' ? '&copy; OSM contributors' : '&copy; Esri'}
                 />
 
                 {/* Custom Zoom Controls */}
@@ -465,6 +468,40 @@ Total available routes: ${currentFloorData.routes.length}`);
                         onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
                     >
                         −
+                    </button>
+                </div>
+
+                {/* Add Map Type Toggle Button */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: 100,
+                    left: 20,
+                    zIndex: 1000,
+                    background: 'rgba(255, 255, 255, 0.9)',
+                    padding: '8px',
+                    borderRadius: 20,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                    backdropFilter: 'blur(8px)'
+                }}>
+                    <button
+                        onClick={() => setMapType(mapType === 'normal' ? 'satellite' : 'normal')}
+                        style={{
+                            padding: '8px 16px',
+                            border: 'none',
+                            background: 'transparent',
+                            color: '#333',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            borderRadius: 16,
+                            transition: 'all 0.2s ease'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                        <FaMap style={{ color: mapType === 'normal' ? '#4285F4' : '#34A853' }} />
+                        {mapType === 'normal' ? 'Satellite' : 'Normal'}
                     </button>
                 </div>
 
